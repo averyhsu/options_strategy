@@ -7,3 +7,6 @@ One line each: `YYYY-MM-DD | choice | alternative considered | why`. Append-only
 2026-08-06 | rf = synthetic rates curve (Pass 1); 3M T-bill (Pass 2) | SOFR curve | matches PLAN §2.1 implied rf ≈ 2.6% check
 2026-08-06 | Vendor adapter built only when real data lands in data/raw/ | build speculative Theta/CBOE adapters now | avoid coding against guessed schemas
 2026-08-06 | miniconda env `options_strategy` (py3.12) + pip, not uv | uv per PLAN §3.2 | user directive at kickoff
+2026-08-06 | Sessions/holidays from exchange_calendars XNYS as CBOE proxy | XCBOE calendar | exchange_calendars ships no CBOE index-options calendar (only XCBF futures); SPX trading days follow the NYSE holiday schedule
+2026-08-06 | 1-min bar timestamps label the bar START (ET, tz-aware); daily NAV marks use the close of the last RTH bar | bar-end labels | vendor-common convention; documented so real-data adapters normalize to it
+2026-08-06 | Holiday shift: Friday expiries -> preceding session, Mon-Thu weeklies -> following session, collisions dedupe | shift everything backward | CBOE convention (Good Friday -> Thu; MLK Mon -> Tue; Thanksgiving Thu merges into Fri); encoded in tests/unit/test_calendar.py
