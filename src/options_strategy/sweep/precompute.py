@@ -27,8 +27,6 @@ _KEY = ["ts", "root", "expiry_date", "strike", "cp"]
 @dataclass
 class Side:
     strikes: np.ndarray  # sorted, sane two-sided rows only
-    bid: np.ndarray
-    ask: np.ndarray
     mid: np.ndarray
     bid_size: np.ndarray
     ask_size: np.ndarray
@@ -70,68 +68,67 @@ def build_cache(
     flags_all = adapter.quality_flags()
     forwards_all = adapter.forwards_extracted().filter(pl.col("root") == "SPXW")
 
-    frames = []
-    for session in session_list:
-        q = adapter.option_quotes(session)
-        q = q.filter(pl.col("root") == "SPXW")
-        eod_ts = q["ts"].max()
-        frames.append(q.filter(pl.col("ts") == eod_ts))
-    big = pl.concat(frames)
-    big = big.join(flags_all.select([*_KEY, "flags"]), on=_KEY, how="left").with_columns(
-        pl.col("flags").fill_null(0)
-    )
-    big = big.filter((pl.col("flags") == 0) & (pl.col("bid") > 0)).with_columns(
-        mid=(pl.col("bid") + pl.col("ask")) / 2.0,
-        session=pl.col("ts").dt.date(),
-    )
-    # LEFT join: quotes of expiries WITHOUT a usable parity fit stay tradeable
-    # (mids, sizes) — fits are only prerequisites for IV/delta/model marks.
-    big = big.join(
-        forwards_all.select("ts", "expiry_date", "forward_hat", "df_hat", "tau_years", "parity_ok"),
-        on=["ts", "expiry_date"],
-        how="left",
-    ).with_columns(pl.col("parity_ok").fill_null(False))
-    big = big.sort(["session", "expiry_date", "cp", "strike"])
-
-    # one giant vectorized IV + delta solve (rows with a parity fit only)
-    ok = big["parity_ok"].to_numpy()
-    mid_np = big["mid"].to_numpy()
-    f_np = big["forward_hat"].fill_null(0.0).to_numpy()
-    k_np = big["strike"].to_numpy()
-    tau_np = big["tau_years"].fill_null(1.0).to_numpy()
-    df_np = big["df_hat"].fill_null(1.0).to_numpy()
-    w_np = np.where(big["cp"].to_numpy() == "C", 1, -1)
-    iv_np = np.full(len(mid_np), np.nan)
-    iv_np[ok] = implied_vol(mid_np[ok], f_np[ok], k_np[ok], tau_np[ok], df_np[ok], cp=w_np[ok])
-    delta_abs = np.full(len(mid_np), np.nan)
-    solvable = np.isfinite(iv_np)
-    if solvable.any():
-        g = greeks(
-            f_np[solvable],
-            k_np[solvable],
-            tau_np[solvable],
-            iv_np[solvable],
-            df_np[solvable],
-            cp=w_np[solvable],
-        )
-        delta_abs[solvable] = np.abs(g.delta / df_np[solvable])
-
-    big = big.with_columns(_iv=pl.Series(iv_np), _delta=pl.Series(delta_abs))
-
     by_session: dict[dt.date, SessionData] = {}
     daily = adapter.underlying_bars().with_columns(session=pl.col("ts").dt.date())
     closes = dict(
         daily.group_by("session", maintain_order=True).agg(pl.col("close").last()).iter_rows()
     )
 
-    for (session,), grp in big.group_by(["session"], maintain_order=True):
+    # Streamed per-session build: one small frame in memory at a time (this
+    # box has 8GB RAM; a whole-world concat of an 18M-row chain got the
+    # process OOM-killed).
+    for session in session_list:
+        q = adapter.option_quotes(session).filter(pl.col("root") == "SPXW")
+        eod_ts = q["ts"].max()
+        frame = q.filter(pl.col("ts") == eod_ts)
+        frame = frame.join(flags_all.select([*_KEY, "flags"]), on=_KEY, how="left").with_columns(
+            pl.col("flags").fill_null(0)
+        )
+        frame = frame.filter((pl.col("flags") == 0) & (pl.col("bid") > 0)).with_columns(
+            mid=(pl.col("bid") + pl.col("ask")) / 2.0
+        )
+        # LEFT join: quotes of expiries WITHOUT a usable parity fit stay
+        # tradeable (mids, sizes) — fits only gate IV/delta/model marks.
+        frame = frame.join(
+            forwards_all.filter(pl.col("ts") == eod_ts).select(
+                "expiry_date", "forward_hat", "df_hat", "tau_years", "parity_ok"
+            ),
+            on=["expiry_date"],
+            how="left",
+        ).with_columns(pl.col("parity_ok").fill_null(False))
+        frame = frame.sort(["expiry_date", "cp", "strike"])
+
+        ok = frame["parity_ok"].to_numpy()
+        mid_np = frame["mid"].to_numpy()
+        f_np = frame["forward_hat"].fill_null(0.0).to_numpy()
+        k_np = frame["strike"].to_numpy()
+        tau_np = frame["tau_years"].fill_null(1.0).to_numpy()
+        df_np = frame["df_hat"].fill_null(1.0).to_numpy()
+        w_np = np.where(frame["cp"].to_numpy() == "C", 1, -1)
+        iv_np = np.full(len(mid_np), np.nan)
+        if ok.any():
+            iv_np[ok] = implied_vol(
+                mid_np[ok], f_np[ok], k_np[ok], tau_np[ok], df_np[ok], cp=w_np[ok]
+            )
+        delta_abs = np.full(len(mid_np), np.nan)
+        solvable = np.isfinite(iv_np)
+        if solvable.any():
+            g = greeks(
+                f_np[solvable],
+                k_np[solvable],
+                tau_np[solvable],
+                iv_np[solvable],
+                df_np[solvable],
+                cp=w_np[solvable],
+            )
+            delta_abs[solvable] = np.abs(g.delta / df_np[solvable])
+        frame = frame.with_columns(_iv=pl.Series(iv_np), _delta=pl.Series(delta_abs))
+
         sides: dict[tuple[dt.date, str], Side] = {}
         forwards: dict[dt.date, tuple[float, float, float]] = {}
-        for (expiry, cp), sgrp in grp.group_by(["expiry_date", "cp"], maintain_order=True):
+        for (expiry, cp), sgrp in frame.group_by(["expiry_date", "cp"], maintain_order=True):
             sides[(expiry, cp)] = Side(
                 strikes=sgrp["strike"].to_numpy(),
-                bid=sgrp["bid"].to_numpy(),
-                ask=sgrp["ask"].to_numpy(),
                 mid=sgrp["mid"].to_numpy(),
                 bid_size=sgrp["bid_size"].to_numpy(),
                 ask_size=sgrp["ask_size"].to_numpy(),
