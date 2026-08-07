@@ -1,0 +1,47 @@
+{
+  "label": "SYNTHETIC",
+  "n_weeks": 1335,
+  "ema_len": 21,
+  "by_state": [
+    {
+      "state": "bear",
+      "n": 501,
+      "mean_ret": -0.009204229805305044,
+      "win_rate": 0.4171656686626746,
+      "worst": -0.13244600809060783
+    },
+    {
+      "state": "bull",
+      "n": 834,
+      "mean_ret": 0.005986246522755272,
+      "win_rate": 0.7086330935251799,
+      "worst": -0.053718562068924426
+    }
+  ],
+  "by_event": [
+    {
+      "event": "crossover",
+      "n": 120,
+      "mean_next_ret": -0.0021745257246080195
+    },
+    {
+      "event": "none",
+      "n": 1106,
+      "mean_next_ret": 0.0005664825498853234
+    },
+    {
+      "event": "rejection",
+      "n": 50,
+      "mean_next_ret": -0.0025922649008895903
+    },
+    {
+      "event": "retracement",
+      "n": 59,
+      "mean_next_ret": 0.0027652474358527902
+    }
+  ],
+  "n_losing_streaks_ge2": 130,
+  "n_losing_streaks_ge3": 58,
+  "ge3_started_in_bear": 18,
+  "ge3_started_in_bull": 40
+}

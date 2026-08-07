@@ -13,7 +13,7 @@ def tiny_world_kwargs() -> dict:
         "seed": 11,
         "start": dt.date(2026, 3, 2),
         "end": dt.date(2026, 3, 20),
-        "chain": ChainParams(n_weeklies=3, n_monthlies=1, near_band_pct=0.02, span_pct=0.05),
+        "chain": ChainParams(n_weeklies=8, n_monthlies=1, near_band_pct=0.02, span_pct=0.05),
         "snapshots": SnapshotSpec(
             eod=True, intraday_windows=((dt.date(2026, 3, 10), dt.date(2026, 3, 10)),)
         ),

@@ -139,10 +139,27 @@ def run_backtest(
     sessions = adapter.sessions()
     expiries = adapter.expiries()
 
+    daily_all = underlying.group_by("session", maintain_order=True).agg(
+        open=pl.col("open").first(),
+        high=pl.col("high").max(),
+        low=pl.col("low").min(),
+        close=pl.col("close").last(),
+    )
+    session_list = sessions["session"].to_list()
+    n_sessions = len(session_list)
+    iso_weeks = [(d.isocalendar().year, d.isocalendar().week) for d in session_list]
+    last_of_week = [
+        i == n_sessions - 1 or iso_weeks[i + 1] != iso_weeks[i] for i in range(n_sessions)
+    ]
+    second_last_of_week = [
+        i + 1 < n_sessions and iso_weeks[i + 1] == iso_weeks[i] and last_of_week[i + 1]
+        for i in range(n_sessions)
+    ]
+
     daily_rows: list[dict] = []
     result = BacktestResult(daily=pl.DataFrame(), portfolio=portfolio)
 
-    for session in sessions["session"].to_list():
+    for sess_i, session in enumerate(session_list):
         _settle(portfolio, settle_table, expiries, session, kind="AM")
 
         quotes_day = adapter.option_quotes(session)
@@ -150,20 +167,34 @@ def run_backtest(
             flags_all.select([*key_cols, "flags"]), on=key_cols, how="left"
         ).with_columns(pl.col("flags").fill_null(0))
         bars = underlying.filter(pl.col("session") == session)
-        spot_by_ts = dict(zip(bars["ts"].to_list(), bars["close"].to_list(), strict=True))
+        bar_ts_list = bars["ts"].to_list()
+        bar_index = {t: j for j, t in enumerate(bar_ts_list)}
+        closes = bars["close"].to_numpy()
+        cum_high = bars["high"].cum_max().to_numpy()
+        cum_low = bars["low"].cum_min().to_numpy()
+        day_open = float(bars["open"][0])
+        history = daily_all[:sess_i]
 
         snap_ts = quotes_day["ts"].unique().sort().to_list()
         last_view: MarketView | None = None
         for i, ts in enumerate(snap_ts):
             chain = quotes_day.filter(pl.col("ts") == ts)
             fwd = forwards_all.filter(pl.col("ts") == ts)
+            j = bar_index[ts]
             view = MarketView(
                 ts=ts,
-                spot=float(spot_by_ts[ts]),
+                spot=float(closes[j]),
                 chain=chain,
                 forwards=fwd,
                 session_date=session,
                 is_last_bar_of_session=(i == len(snap_ts) - 1),
+                daily_history=history,
+                today_open=day_open,
+                today_high=float(cum_high[j]),
+                today_low=float(cum_low[j]),
+                is_last_session_of_week=last_of_week[sess_i],
+                is_second_last_session_of_week=second_last_of_week[sess_i],
+                next_session=session_list[sess_i + 1] if sess_i + 1 < n_sessions else None,
             )
             strategy.on_bar(view, portfolio, broker)
             broker.evaluate(view)

@@ -22,6 +22,14 @@ class MarketView:
         forwards: pl.DataFrame,  # this bar's parity fits
         session_date: dt.date,
         is_last_bar_of_session: bool,
+        *,
+        daily_history: pl.DataFrame | None = None,  # completed sessions BEFORE today
+        today_open: float | None = None,
+        today_high: float | None = None,
+        today_low: float | None = None,
+        is_last_session_of_week: bool = False,
+        is_second_last_session_of_week: bool = False,
+        next_session: dt.date | None = None,
     ):
         self._ts = ts
         self._spot = spot
@@ -29,6 +37,13 @@ class MarketView:
         self._forwards = forwards
         self._session_date = session_date
         self._is_last = is_last_bar_of_session
+        self._daily_history = daily_history
+        self.today_open = today_open if today_open is not None else spot
+        self.today_high = today_high if today_high is not None else spot
+        self.today_low = today_low if today_low is not None else spot
+        self.is_last_session_of_week = is_last_session_of_week
+        self.is_second_last_session_of_week = is_second_last_session_of_week
+        self.next_session = next_session
         self._quote_index: dict[OptionKey, LegQuote] | None = None
 
     @property
@@ -46,6 +61,20 @@ class MarketView:
     @property
     def is_last_bar_of_session(self) -> bool:
         return self._is_last
+
+    def daily_history(self) -> pl.DataFrame:
+        """Completed daily candles strictly before today (no-lookahead)."""
+        if self._daily_history is None:
+            return pl.DataFrame(
+                schema={
+                    "session": pl.Date(),
+                    "open": pl.Float64(),
+                    "high": pl.Float64(),
+                    "low": pl.Float64(),
+                    "close": pl.Float64(),
+                }
+            )
+        return self._daily_history
 
     def chain(
         self, root: str | None = None, expiry: dt.date | None = None, sane_only: bool = True

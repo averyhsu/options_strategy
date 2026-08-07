@@ -279,7 +279,21 @@ def generate_world(cfg: SyntheticWorldConfig, out_root: Path | str) -> tuple[Wor
     _write_rates(sessions, cfg, paths)
     _write_settlements(path, expiries, cfg, paths)
 
-    truth = pl.DataFrame(truth_rows).with_columns(pl.col("ts").dt.replace_time_zone(ET))
+    truth_schema = {
+        "ts": pl.Datetime("us", ET),
+        "root": pl.String(),
+        "expiry_date": pl.Date(),
+        "forward": pl.Float64(),
+        "df": pl.Float64(),
+        "r": pl.Float64(),
+        "q": pl.Float64(),
+        "v_t": pl.Float64(),
+        "theta_t": pl.Float64(),
+    }
+    if truth_rows:
+        truth = pl.DataFrame(truth_rows).with_columns(pl.col("ts").dt.replace_time_zone(ET))
+    else:  # candles-only worlds (regime studies) emit no chain snapshots
+        truth = pl.DataFrame(schema=truth_schema)
     truth.sort(["ts", "expiry_date", "root"]).write_parquet(paths.truth_forwards)
     _write_injected(injected_rows, paths)
 

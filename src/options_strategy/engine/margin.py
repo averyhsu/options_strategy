@@ -43,14 +43,17 @@ class LegState:
     df: float
 
 
-def r_scenario(legs: list[LegState], spot: float, grid: ScenarioGrid | None = None) -> float:
-    """Worst dollar loss per combo at the front expiry over the scenario grid."""
+def scenario_extremes(
+    legs: list[LegState], spot: float, grid: ScenarioGrid | None = None
+) -> tuple[float, float]:
+    """(worst, best) dollar P&L per combo at the front expiry over the grid."""
     grid = grid or ScenarioGrid()
     front_tau = min(leg.tau for leg in legs)
     entry_debit = sum(leg.ratio * leg.mid for leg in legs)
 
     s_mults = np.arange(-grid.s_range, grid.s_range + grid.s_step / 2, grid.s_step)
     worst_pnl = 0.0
+    best_pnl = 0.0
     for s_mult in s_mults:
         s_prime = spot * (1.0 + s_mult)
         for vshift in grid.vol_shifts:
@@ -71,7 +74,14 @@ def r_scenario(legs: list[LegState], spot: float, grid: ScenarioGrid | None = No
                     )
             pnl = (value - entry_debit) * CONTRACT_MULTIPLIER
             worst_pnl = min(worst_pnl, pnl)
-    return max(-worst_pnl, 0.0)
+            best_pnl = max(best_pnl, pnl)
+    return worst_pnl, best_pnl
+
+
+def r_scenario(legs: list[LegState], spot: float, grid: ScenarioGrid | None = None) -> float:
+    """Worst dollar loss per combo at the front expiry over the scenario grid."""
+    worst, _ = scenario_extremes(legs, spot, grid)
+    return max(-worst, 0.0)
 
 
 def r_width(legs: list[LegState]) -> float:

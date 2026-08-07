@@ -23,6 +23,10 @@ from dataclasses import dataclass
 from options_strategy.engine.instruments import OptionKey
 from options_strategy.engine.orders import ComboOrder, FillModel
 
+# Price comparisons tolerate 1e-9 index points (1e-7 cents, vs a $0.05 tick):
+# whether a limit "touches" must not depend on float-summation association.
+_PRICE_EPS = 1e-9
+
 
 @dataclass(frozen=True)
 class LegQuote:
@@ -67,8 +71,13 @@ def combo_quote(order: ComboOrder, quotes: Mapping[OptionKey, LegQuote]) -> Comb
                 return None
             market += ratio * q.bid
             size = q.bid_size
-        mid += ratio * (q.bid + q.ask) / 2.0
-        half += abs(ratio) * (q.ask - q.bid) / 2.0
+        # leg mid computed exactly as strategy-side plans do — ratio * ((b+a)/2),
+        # NOT (ratio*(b+a))/2 — so a limit placed AT the current mid compares
+        # bit-identically (1-ULP associativity differences broke that once).
+        leg_mid = (q.bid + q.ask) / 2.0
+        leg_half = (q.ask - q.bid) / 2.0
+        mid += ratio * leg_mid
+        half += abs(ratio) * leg_half
         max_qty = min(max_qty, size // abs(ratio))
     return ComboQuote(market_debit=market, mid_debit=mid, half_spread=half, max_qty=int(max_qty))
 
@@ -91,7 +100,7 @@ def evaluate_resting(
     limit = order.max_net_debit
 
     if model is FillModel.CONSERVATIVE:
-        crossed = cq.market_debit <= limit
+        crossed = cq.market_debit <= limit + _PRICE_EPS
         if crossed:
             order.crossed_bars += 1
         else:
@@ -99,10 +108,10 @@ def evaluate_resting(
         if order.crossed_bars < 2:
             return None
     elif model is FillModel.MID:
-        if not (cq.mid_debit + k_mid * cq.half_spread <= limit):
+        if not (cq.mid_debit + k_mid * cq.half_spread <= limit + _PRICE_EPS):
             return None
     elif model is FillModel.OPTIMISTIC:
-        if not (cq.mid_debit <= limit):
+        if not (cq.mid_debit <= limit + _PRICE_EPS):
             return None
     else:  # pragma: no cover - enum is closed
         raise ValueError(model)

@@ -1,0 +1,28 @@
+# 26-year-analog CANDLES-ONLY world for the regime study deliverable
+# (PLAN §8.3, Pass-1 synthetic form). No option chains are generated: the
+# study consumes daily candles only, so the options QA gate does not apply.
+# Scripted segments rehearse grind-up / crash / recovery / chop regimes.
+name: regime-26y-synthetic
+seed: 19990104
+start: 2000-01-03
+end: 2026-01-02
+underlying_step_minutes: 30
+s0: 1400.0
+
+snapshots:
+  eod: false
+  intraday_windows: []
+
+segments:
+  - { length_sessions: 700, mu_annual: 0.10 }
+  - { length_sessions: 120, mu_annual: -0.45, theta_mult: 5.0, lam_mult: 8.0 }
+  - { length_sessions: 500, mu_annual: 0.14, theta_mult: 1.5 }
+  - { length_sessions: 400, mu_annual: 0.00, theta_mult: 1.2 }
+  - { length_sessions: 700, mu_annual: 0.12 }
+  - { length_sessions: 90, mu_annual: -0.60, theta_mult: 6.0, lam_mult: 10.0 }
+  - { length_sessions: 600, mu_annual: 0.15, theta_mult: 1.5 }
+  - { length_sessions: 500, mu_annual: 0.02, theta_mult: 1.3 }
+  - { length_sessions: 800, mu_annual: 0.10 }
+  - { length_sessions: 150, mu_annual: -0.35, theta_mult: 4.0, lam_mult: 6.0 }
+  - { length_sessions: 900, mu_annual: 0.12 }
+  - { length_sessions: 10000, mu_annual: 0.08 }
