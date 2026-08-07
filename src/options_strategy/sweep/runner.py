@@ -80,23 +80,37 @@ def prune_reasons(m: dict) -> list[str]:
     return reasons
 
 
-def run_sweep(run_cfg: SweepRunConfig, engine_cfg: EngineConfig | None = None) -> dict:
+CHUNK_SIZE = 2048
+
+
+def run_chunk(
+    run_cfg: SweepRunConfig,
+    start: int,
+    size: int = CHUNK_SIZE,
+    engine_cfg: EngineConfig | None = None,
+) -> Path:
+    """Evaluate configs [start, start+size) and checkpoint them to parquet.
+
+    Idempotent: an existing checkpoint is returned untouched, so a killed run
+    (this 8GB box jetsams long-lived processes under memory pressure) resumes
+    by re-invoking the same chunks. Each chunk is meant to run in its OWN
+    short-lived process.
+    """
     engine_cfg = engine_cfg or EngineConfig()
-    out_dir = Path(run_cfg.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_dir = Path(run_cfg.out_dir) / "checkpoints"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt = ckpt_dir / f"chunk_{start:06d}.parquet"
+    if ckpt.exists():
+        return ckpt
+
     adapter = SyntheticWorldAdapter(run_cfg.world)
-
     combos = [(e, h) for e in EMA_LENS for h in HYSTERESIS]
-    t0 = time.time()
     cache = build_cache(adapter, combos)
-    t_cache = time.time() - t0
 
-    params_list = sobol_params(run_cfg.n_configs, run_cfg.seed)
+    params_list = sobol_params(run_cfg.n_configs, run_cfg.seed)[start : start + size]
     rows: list[dict] = []
-    ledger_rows: list[ledger.LedgerRow] = []
-    git_sha = ledger.current_git_sha()
     t0 = time.time()
-    for idx, params in enumerate(params_list):
+    for offset, params in enumerate(params_list):
         cfg = weekly_config(params)
         res = run_config(
             cache,
@@ -106,54 +120,73 @@ def run_sweep(run_cfg: SweepRunConfig, engine_cfg: EngineConfig | None = None) -
             engine_cfg.participation_cap,
         )
         m = metrics_from_result(res, engine_cfg.account_size)
-        reasons = prune_reasons(m)
-        rows.append({"idx": idx, **params, **m, "prune_reasons": ",".join(reasons)})
-        ledger_rows.append(
-            ledger.LedgerRow(
-                kind="sweep",
-                config_hash=config_hash(cfg),
-                git_sha=git_sha,
-                data_version=adapter.data_version,
-                seed=run_cfg.seed,
-                metrics={
-                    k: m[k]
-                    for k in (
-                        "n_cycles",
-                        "expectancy_per_cycle",
-                        "weekly_wr",
-                        "max_dd",
-                        "final_nav",
-                    )
-                },
-                artifacts=[],
-            )
+        rows.append(
+            {
+                "idx": start + offset,
+                **params,
+                **m,
+                "prune_reasons": ",".join(prune_reasons(m)),
+                "config_hash": config_hash(cfg),
+            }
         )
-        if (idx + 1) % 1000 == 0:
-            rate = (idx + 1) / (time.time() - t0)
-            print(f"  {idx + 1}/{len(params_list)} configs ({rate:.1f}/s)")
+    pl.DataFrame(rows).write_parquet(ckpt)
+    print(f"chunk {start}: {len(rows)} configs in {time.time() - t0:.0f}s -> {ckpt.name}")
+    return ckpt
 
-    t_run = time.time() - t0
-    df = pl.DataFrame(rows)
+
+def finalize(run_cfg: SweepRunConfig) -> dict:
+    """Assemble checkpoints, prune, report, and ledger every config."""
+    out_dir = Path(run_cfg.out_dir)
+    ckpts = sorted((out_dir / "checkpoints").glob("chunk_*.parquet"))
+    df = pl.concat([pl.read_parquet(p) for p in ckpts]).sort("idx")
+    if df.height != run_cfg.n_configs:
+        raise RuntimeError(f"checkpoints cover {df.height} configs, expected {run_cfg.n_configs}")
+
+    adapter = SyntheticWorldAdapter(run_cfg.world)
     rng = np.random.default_rng(run_cfg.seed)
     survived = df["prune_reasons"] == ""
     random_keep = pl.Series((rng.random(df.height) < KEEP_RANDOM_FRAC) & (~survived.to_numpy()))
     df = df.with_columns(survived=survived, kept=survived | random_keep)
     df.write_parquet(out_dir / "sweep_metrics.parquet")
     df.filter(pl.col("kept")).write_parquet(out_dir / "survivors.parquet")
+
+    git_sha = ledger.current_git_sha()
+    ledger_rows = [
+        ledger.LedgerRow(
+            kind="sweep",
+            config_hash=r["config_hash"],
+            git_sha=git_sha,
+            data_version=adapter.data_version,
+            seed=run_cfg.seed,
+            metrics={
+                "n_cycles": r["n_cycles"],
+                "expectancy_per_cycle": r["expectancy_per_cycle"],
+                "weekly_wr": r["weekly_wr"],
+                "max_dd": r["max_dd"],
+                "final_nav": r["final_nav"],
+            },
+            artifacts=[],
+        )
+        for r in df.iter_rows(named=True)
+    ]
     ledger.append(ledger_rows)
 
     summary = {
         "n_configs": df.height,
         "n_survivors": int(df["survived"].sum()),
         "n_kept": int(df["kept"].sum()),
-        "cache_seconds": round(t_cache, 1),
-        "run_seconds": round(t_run, 1),
-        "configs_per_second": round(df.height / t_run, 2),
         "data_version": adapter.data_version,
     }
     (out_dir / "pruning_report.md").write_text(_report(df, summary, run_cfg))
     (out_dir / "sweep_summary.json").write_text(json.dumps(summary, indent=2))
     return summary
+
+
+def run_sweep(run_cfg: SweepRunConfig, engine_cfg: EngineConfig | None = None) -> dict:
+    """Single-process convenience path (tests, small runs): chunks then finalize."""
+    for start in range(0, run_cfg.n_configs, CHUNK_SIZE):
+        run_chunk(run_cfg, start, min(CHUNK_SIZE, run_cfg.n_configs - start), engine_cfg)
+    return finalize(run_cfg)
 
 
 def _marginal(df: pl.DataFrame, name: str) -> list[tuple[str, int, float]]:
@@ -189,8 +222,6 @@ def _report(df: pl.DataFrame, summary: dict, run_cfg: SweepRunConfig) -> str:
         f"- survivors: {summary['n_survivors']:,} "
         f"({summary['n_survivors'] / summary['n_configs']:.1%})",
         f"- kept (survivors + {KEEP_RANDOM_FRAC:.0%} random bias-guard): {summary['n_kept']:,}",
-        f"- runtime: cache {summary['cache_seconds']}s, "
-        f"runs {summary['run_seconds']}s ({summary['configs_per_second']}/s)",
         "",
         "## Prune reasons (a config can hit several)",
         "",
