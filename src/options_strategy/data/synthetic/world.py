@@ -179,15 +179,33 @@ def generate_world(cfg: SyntheticWorldConfig, out_root: Path | str) -> tuple[Wor
     n_quote_rows = 0
 
     session_dates = [d_.astype(object) for d_ in path.session_dates]
+    # Listed strikes accumulate for the life of each expiry (generator rev 3):
+    # per session the grid is fixed from the OPEN spot, unioned with history.
+    strike_memory: dict[dt.date, np.ndarray] = {}
     for i, sess_date in enumerate(session_dates):
         sl = path.session_slice(i)
         is_intraday = sess_date in intraday_sessions
+        n_sess_bars = sl.stop - sl.start
         if is_intraday:
-            bar_offsets = range(sl.stop - sl.start)
+            step = max(cfg.snapshots.intraday_step_bars, 1)
+            offsets = list(range(0, n_sess_bars, step))
+            if offsets[-1] != n_sess_bars - 1:
+                offsets.append(n_sess_bars - 1)  # EOD mark bar always present
+            bar_offsets: list[int] | range = offsets
         elif cfg.snapshots.eod:
-            bar_offsets = [sl.stop - sl.start - 1]
+            bar_offsets = [n_sess_bars - 1]
         else:
             continue
+
+        s_open = float(path.s[sl.start])
+        session_grid = _strike_grid(
+            s_open,
+            cfg.chain.near_band_pct,
+            cfg.chain.span_pct,
+            cfg.chain.strike_step_near,
+            cfg.chain.strike_step_far,
+        )
+        merged_this_session: set[dt.date] = set()
 
         cols: dict[str, list[np.ndarray]] = {k: [] for k in OPTION_QUOTES_SCHEMA}
         for off in bar_offsets:
@@ -199,17 +217,19 @@ def generate_world(cfg: SyntheticWorldConfig, out_root: Path | str) -> tuple[Wor
             visible = _visible_expiries(
                 expiries, ts_py, cfg.chain.n_weeklies, cfg.chain.n_monthlies
             )
-            strikes = _strike_grid(
-                s_t,
-                cfg.chain.near_band_pct,
-                cfg.chain.span_pct,
-                cfg.chain.strike_step_near,
-                cfg.chain.strike_step_far,
-            )
-            nk = len(strikes)
             is_eod_bar = off == (sl.stop - sl.start - 1)
 
             for expiry, root, settlement in visible:
+                if expiry not in merged_this_session:
+                    prev = strike_memory.get(expiry)
+                    strike_memory[expiry] = (
+                        session_grid
+                        if prev is None
+                        else np.unique(np.concatenate([prev, session_grid]))
+                    )
+                    merged_this_session.add(expiry)
+                strikes = strike_memory[expiry]
+                nk = len(strikes)
                 tau = (settle_datetime(expiry, settlement) - ts_py).total_seconds()
                 tau /= SECONDS_PER_YEAR
                 fwd = s_t * np.exp((r - q) * tau)

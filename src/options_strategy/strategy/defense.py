@@ -177,15 +177,19 @@ def action_legs(
     raise ValueError(cfg.action)
 
 
-def position_delta_dollars_per_point(
-    view: MarketView, positions: dict[OptionKey, float]
-) -> float | None:
-    """Net position delta in $ per index point (for delta_hedge)."""
+def position_delta_dollars_per_point(view: MarketView, positions: dict[OptionKey, float]) -> float:
+    """Net position delta in $ per index point (for delta_hedge).
+
+    Legs without a solvable quote (deep beyond the live band after a gap) use
+    the intrinsic-delta limit: 1 if ITM else 0 — the correct asymptote, and a
+    hedge built on it is far better than refusing to hedge at all.
+    """
     total = 0.0
     for key, qty in positions.items():
         d = leg_abs_delta(view, key)
         if d is None:
-            return None
+            itm = (view.spot - key.strike) if key.cp == "C" else (key.strike - view.spot)
+            d = 1.0 if itm > 0 else 0.0
         signed = d if key.cp == "C" else -d
         total += signed * qty * 100.0
     return total

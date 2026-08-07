@@ -99,13 +99,21 @@ class ChainParams(_Frozen):
 class SnapshotSpec(_Frozen):
     eod: bool = True  # daily snapshot at the last RTH bar
     intraday_windows: tuple[tuple[dt.date, dt.date], ...] = ()
+    # Quote-snapshot cadence inside intraday windows, in underlying bars
+    # (underlying stays 1-min; e.g. 5 -> quotes every 5 minutes). Pass-1
+    # dress-rehearsal knob: touch detection uses the 1-min underlying either
+    # way; real Pass-2 data arrives at its own cadence.
+    intraday_step_bars: int = 1
 
 
 class SyntheticWorldConfig(_Frozen):
     name: str
     # Bumped whenever generator BEHAVIOR changes so data_version (a config
     # hash) never collides across generator revisions.
-    generator_rev: int = 2
+    # rev 3: listed strikes persist for an expiry's whole life (union of
+    # session grids, fixed intraday from the session open) — real exchanges
+    # do not delist strikes when spot drifts away.
+    generator_rev: int = 3
     seed: int = 20260806
     start: dt.date
     end: dt.date

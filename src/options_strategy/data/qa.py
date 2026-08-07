@@ -365,7 +365,9 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
                 "n_rows": frame.height,
                 "n_snapshots": len(ts_unique),
                 "expected_bars": expected_bars,
-                "missing_bars": (expected_bars - len(ts_unique)) if expected_bars else 0,
+                # extra density (e.g. a guaranteed EOD mark bar) is benign;
+                # only DEFICITS are coverage failures
+                "missing_bars": max(expected_bars - len(ts_unique), 0) if expected_bars else 0,
                 "n_expiries": frame.select("expiry_date", "root").unique().height,
                 "min_strikes_side": int(
                     frame.group_by("ts", "expiry_date", "root", "cp")

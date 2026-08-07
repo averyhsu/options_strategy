@@ -267,7 +267,10 @@ class DoubleDiagonalWeekly:
         value = 0.0
         for key, ratio in cy.plan.legs:
             q = view.quote(key)
-            if q is None or not q.sane or q.bid <= 0:
+            # marks (unlike fills) accept one-sided quotes: a zero-bid deep-OTM
+            # wing is worth ~ask/2, and refusing to value it would blind the
+            # pnl_floor trigger in exactly the states it exists for
+            if q is None or not q.sane:
                 return None
             value += ratio * (q.bid + q.ask) / 2.0
         return (cy.entry_credit_points + value * cy.entry_fills) * 100.0
@@ -319,10 +322,9 @@ class DoubleDiagonalWeekly:
             if cfg.action == "delta_hedge":
                 positions = dict(portfolio.option_positions())
                 delta = dfs.position_delta_dollars_per_point(view, positions)
-                if delta is not None:
-                    units = -delta - cy.hedge_units
-                    portfolio.trade_index(units, view.spot)
-                    cy.hedge_units += units
+                units = -delta - cy.hedge_units
+                portfolio.trade_index(units, view.spot)
+                cy.hedge_units += units
             else:
                 legs = dfs.action_legs(cfg, act_side, view, cy.plan.legs)
                 if legs is not None:

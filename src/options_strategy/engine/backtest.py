@@ -175,11 +175,16 @@ def run_backtest(
         day_open = float(bars["open"][0])
         history = daily_all[:sess_i]
 
-        snap_ts = quotes_day["ts"].unique().sort().to_list()
+        by_ts = quotes_day.partition_by(["ts"], as_dict=True, maintain_order=True)
+        fwd_by_ts = forwards_all.filter(pl.col("ts").dt.date() == session).partition_by(
+            ["ts"], as_dict=True, maintain_order=True
+        )
+        snap_ts = sorted(k[0] for k in by_ts)
+        empty_fwd = forwards_all.clear()
         last_view: MarketView | None = None
         for i, ts in enumerate(snap_ts):
-            chain = quotes_day.filter(pl.col("ts") == ts)
-            fwd = forwards_all.filter(pl.col("ts") == ts)
+            chain = by_ts[(ts,)]
+            fwd = fwd_by_ts.get((ts,), empty_fwd)
             j = bar_index[ts]
             view = MarketView(
                 ts=ts,

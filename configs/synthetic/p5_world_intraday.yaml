@@ -1,0 +1,39 @@
+# P5 intraday world — SYNTHETIC (PLAN §9.2, §12 P5 Pass-1 form).
+# Nine Friday->Friday weeks at 5-minute quote snapshots (1-min underlying for
+# touch detection) across calm / trend / chop regimes, including the scripted
+# weekend-gap week (Monday -5%, vol x3 — the F4 rehearsal) and a midweek crash.
+name: p5-world-intraday-synthetic
+seed: 20250606
+start: 2025-06-02
+end: 2025-10-31
+s0: 5000.0
+
+chain:
+  n_weeklies: 40
+  n_monthlies: 1
+  near_band_pct: 0.025
+  span_pct: 0.08
+
+snapshots:
+  eod: true
+  intraday_step_bars: 5
+  intraday_windows:
+    - [2025-06-06, 2025-06-13] # calm
+    - [2025-06-20, 2025-06-27] # calm
+    - [2025-07-11, 2025-07-18] # trend
+    - [2025-08-01, 2025-08-08] # chop
+    - [2025-08-15, 2025-08-22] # WEEKEND GAP week (forced Monday 08-18)
+    - [2025-08-29, 2025-09-05] # post-gap
+    - [2025-09-12, 2025-09-19] # midweek crash (forced Wednesday 09-17)
+    - [2025-10-03, 2025-10-10] # recovery
+    - [2025-10-17, 2025-10-24] # calm
+
+segments:
+  - { length_sessions: 45, mu_annual: 0.12 }
+  - { length_sessions: 30, mu_annual: 0.00, theta_mult: 1.5 }
+  - { length_sessions: 25, mu_annual: -0.10, theta_mult: 2.0 }
+  - { length_sessions: 10000, mu_annual: 0.10 }
+
+forced_events:
+  - { session: 2025-08-18, gap_pct: -0.05, vol_mult: 3.0 }
+  - { session: 2025-09-17, gap_pct: -0.035, vol_mult: 2.5 }
