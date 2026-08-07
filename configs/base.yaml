@@ -11,6 +11,7 @@ fees:
   regulatory_per_leg: 0.20
 
 fill_model: conservative # conservative | mid | optimistic (PLAN §7.2)
+k_mid_concession: 0.08 # MID model: concession x combo half-spread (calibrated in eval)
 exit_cross_fraction: 1.0 # k_exit: defensive exits cross this fraction of half-spread
 participation_cap: 0.25 # max fraction of displayed size per fill
 

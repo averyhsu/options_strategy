@@ -47,6 +47,6 @@ addopts = "-q"
 
 [tool.mypy]
 python_version = "3.12"
-files = ["src/options_strategy/pricing"]
+files = ["src/options_strategy/pricing", "src/options_strategy/engine"]
 ignore_missing_imports = true
 check_untyped_defs = true
