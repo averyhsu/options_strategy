@@ -81,8 +81,9 @@ class MicrostructureParams(_Frozen):
     stale_rate: float = 0.0  # fraction of (option, intraday-session) pairs frozen
     stale_minutes: int = 45
     # Freeze only options a stale detector can legitimately see: present every
-    # bar of the session and liquid enough (mid >= this) throughout.
-    stale_target_min_mid: float = 0.75
+    # bar of the session and liquid enough (mid >= this) throughout — safely
+    # above the QA detector's premium floor.
+    stale_target_min_mid: float = 3.50
     crossed_rate: float = 0.0  # fraction of quote rows made crossed
     locked_rate: float = 0.0
 

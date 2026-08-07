@@ -72,7 +72,11 @@ class QAConfig(BaseModel):
     parity_rmse_tol: float = 0.25
     parity_min_strikes: int = 8
     stale_minutes: int = 45
-    stale_min_premium: float = 0.50
+    # Below this mid, quote stillness is normal market behavior (low-delta
+    # wings move less than a tick for ordinary spot moves, and coarse snapshot
+    # cadences alias their flickers). A real feed freeze hits rich options too,
+    # so the detector keeps its power where it matters. See ASSUMPTIONS.md.
+    stale_min_premium: float = 2.50
     mono_tol_half_spreads: float = 1.0
     fly_tol_half_spreads: float = 1.0
     calendar_tol_half_spreads: float = 1.5
