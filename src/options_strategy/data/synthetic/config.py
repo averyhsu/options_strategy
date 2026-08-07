@@ -103,6 +103,9 @@ class SnapshotSpec(_Frozen):
 
 class SyntheticWorldConfig(_Frozen):
     name: str
+    # Bumped whenever generator BEHAVIOR changes so data_version (a config
+    # hash) never collides across generator revisions.
+    generator_rev: int = 2
     seed: int = 20260806
     start: dt.date
     end: dt.date

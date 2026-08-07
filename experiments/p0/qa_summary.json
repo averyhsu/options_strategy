@@ -1,0 +1,35 @@
+{
+  "calendar_violations": 0,
+  "clean": true,
+  "data_version": "synthetic-f3356799d33d",
+  "missed_injected": {
+    "crossed_locked_rows": 0,
+    "stale_episodes": 0
+  },
+  "missing_bars_total": 0,
+  "n_flagged_rows": 10792,
+  "n_parity_bad": 300,
+  "n_parity_fits": 27708,
+  "n_rows": 10132272,
+  "n_sessions": 124,
+  "sessions_without_file": 0,
+  "structure_violations": {
+    "bound": 65,
+    "fly": 372,
+    "mono": 107
+  },
+  "truth": {
+    "df_abs_err_max": 0.0003721165674573923,
+    "df_abs_err_max_all_tenors": 0.0023690886766314367,
+    "df_abs_err_max_short_tenor": 0.0011781719100655286,
+    "forward_rel_err_max": 6.5768198528517915e-06,
+    "forward_rel_err_p99": 2.799572256829375e-06,
+    "n_compared": 18641,
+    "n_df_gated": 18175
+  },
+  "unexpected": {
+    "parity_bad": 0,
+    "sanity_rows": 0,
+    "structure_rows": 0
+  }
+}

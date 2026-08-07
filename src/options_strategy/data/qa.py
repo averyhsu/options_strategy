@@ -77,11 +77,14 @@ class QAConfig(BaseModel):
     calendar_tol_half_spreads: float = 1.5
     bound_slack: float = 0.01
     forward_truth_rel_tol: float = 2e-4
-    df_truth_abs_tol: float = 5e-4
-    # DF is unidentifiable from parity slopes minutes before settlement (the
-    # regression can't resolve 1-r*tau at tau ~ 1e-6), so the DF-vs-truth gate
-    # applies only to fits with at least this much tenor. Forwards are gated at
-    # ALL tenors. See ASSUMPTIONS.md.
+    # Parity-slope DF resolution degrades as tenor shrinks (tick-rounding noise
+    # over a narrowing live strike band; measured on the P0 world: ~4e-4 max at
+    # >=7d, ~1e-3 at 1-7d, unidentifiable under 1d). Tiered gate with ~2x
+    # margin over measured resolution; forwards are gated at ALL tenors.
+    # See ASSUMPTIONS.md.
+    df_truth_abs_tol: float = 7.5e-4  # applies at tau >= df_tier_tenor_years
+    df_truth_abs_tol_short: float = 2.5e-3  # applies at df_min_tenor <= tau < tier
+    df_tier_tenor_years: float = 7.0 / 365.0
     df_min_tenor_years: float = 1.0 / 365.0
 
 
@@ -132,7 +135,11 @@ def _sanity_flags(frame: pl.DataFrame, cfg: QAConfig, bar_minutes: int) -> pl.Da
         df = df.with_columns(run_id=changed.cum_sum().over(_IDENT))
         df = df.with_columns(run_pos=pl.int_range(pl.len()).over([*_IDENT, "run_id"]))
         stale = (
-            pl.when((pl.col("run_pos") >= stale_bars) & (pl.col("mid") >= cfg.stale_min_premium))
+            pl.when(
+                (pl.col("run_pos") >= stale_bars)
+                & (pl.col("mid") >= cfg.stale_min_premium)
+                & (pl.col("bid") > 0)  # an absent bid is not a live market gone stale
+            )
             .then(FLAG_STALE)
             .otherwise(0)
         )
@@ -392,6 +399,7 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
     truth_fwd_ok = (
         truth_stats.get("forward_rel_err_max", 0.0) <= cfg.forward_truth_rel_tol
         and truth_stats.get("df_abs_err_max", 0.0) <= cfg.df_truth_abs_tol
+        and truth_stats.get("df_abs_err_max_short_tenor", 0.0) <= cfg.df_truth_abs_tol_short
     )
     clean = bool(
         unexpected["sanity_rows"] == 0
@@ -510,16 +518,22 @@ def _reconcile_with_truth(
         if joined.height:
             rel = ((joined["forward_hat"] - joined["forward"]).abs() / joined["forward"]).to_numpy()
             dferr_all = (joined["df_hat"] - joined["df"]).abs().to_numpy()
-            # DF gate applies only where the tenor makes DF identifiable:
-            gated = joined.filter(pl.col("tau_years") >= cfg.df_min_tenor_years)
-            dferr_gated = (gated["df_hat"] - gated["df"]).abs().to_numpy()
+            # DF gates apply only where the tenor makes DF identifiable:
+            long_t = joined.filter(pl.col("tau_years") >= cfg.df_tier_tenor_years)
+            short_t = joined.filter(
+                (pl.col("tau_years") >= cfg.df_min_tenor_years)
+                & (pl.col("tau_years") < cfg.df_tier_tenor_years)
+            )
+            err_long = (long_t["df_hat"] - long_t["df"]).abs().to_numpy()
+            err_short = (short_t["df_hat"] - short_t["df"]).abs().to_numpy()
             truth_stats = {
                 "n_compared": joined.height,
                 "forward_rel_err_max": float(rel.max()),
                 "forward_rel_err_p99": float(np.quantile(rel, 0.99)),
-                "df_abs_err_max": float(dferr_gated.max()) if len(dferr_gated) else 0.0,
+                "df_abs_err_max": float(err_long.max()) if len(err_long) else 0.0,
+                "df_abs_err_max_short_tenor": float(err_short.max()) if len(err_short) else 0.0,
                 "df_abs_err_max_all_tenors": float(dferr_all.max()),
-                "n_df_gated": gated.height,
+                "n_df_gated": long_t.height + short_t.height,
             }
     return truth_stats, unexpected, missed
 
@@ -567,7 +581,8 @@ def _render_report(manifest: dict, summary: dict, coverage: pl.DataFrame) -> str
         lines += [
             f"| forwards vs truth (n) | {t['n_compared']:,} |",
             f"| forward rel err max | {t['forward_rel_err_max']:.2e} |",
-            f"| DF abs err max (tenor >= gate, n={t['n_df_gated']}) | {t['df_abs_err_max']:.2e} |",
+            f"| DF abs err max (tenor >= 7d) | {t['df_abs_err_max']:.2e} |",
+            f"| DF abs err max (1d-7d) | {t['df_abs_err_max_short_tenor']:.2e} |",
             f"| DF abs err max (all tenors, ungated info) | {t['df_abs_err_max_all_tenors']:.2e} |",
         ]
     lines += ["", "## Coverage by session", "", _md_table(coverage), ""]

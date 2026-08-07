@@ -347,9 +347,14 @@ def _inject_defects(
             .agg(
                 pl.len().alias("_n"),
                 ((pl.col("bid") + pl.col("ask")) / 2.0).min().alias("_min_mid"),
+                pl.col("bid").min().alias("_min_bid"),
             )
-            .filter((pl.col("_n") == n_ts_all) & (pl.col("_min_mid") >= mp.stale_target_min_mid))
-            .drop(["_n", "_min_mid"])
+            .filter(
+                (pl.col("_n") == n_ts_all)
+                & (pl.col("_min_mid") >= mp.stale_target_min_mid)
+                & (pl.col("_min_bid") > 0)
+            )
+            .drop(["_n", "_min_mid", "_min_bid"])
             .sort(["expiry_date", "root", "strike", "cp"])
         )
         n_pick = round(idents.height * mp.stale_rate)
