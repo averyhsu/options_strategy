@@ -115,7 +115,11 @@ def r_margin(legs: list[LegState]) -> float:
 
 
 def contracts_for_risk(risk_fraction: float, nav: float, r_per_combo: float) -> int:
-    """n = floor(frac * NAV / R); zero when R is degenerate."""
+    """n = floor(frac * NAV / R); zero when R is degenerate.
+
+    The 1e-9 nudge keeps the integer floor stable against float-summation
+    ULP noise when R is computed by equivalent-arithmetic alternate paths
+    (Track B vs the sweep runner)."""
     if r_per_combo <= 0:
         return 0
-    return max(math.floor(risk_fraction * nav / r_per_combo), 0)
+    return max(math.floor(risk_fraction * nav / r_per_combo + 1e-9), 0)

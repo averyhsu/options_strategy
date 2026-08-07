@@ -27,7 +27,13 @@ def test_worldgen_requires_config_argument() -> None:
     assert exc.value.code == 2
 
 
-@pytest.mark.parametrize("command", ["run", "sweep", "match", "report"])
+def test_sweep_requires_config_argument() -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["sweep"])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("command", ["run", "match", "report"])
 def test_unimplemented_subcommands_exit_2(command: str) -> None:
     # Stubs; each is replaced by the real behavior test when its phase lands.
     assert cli.main([command]) == 2

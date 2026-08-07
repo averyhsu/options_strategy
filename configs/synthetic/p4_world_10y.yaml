@@ -1,0 +1,32 @@
+# P4 coarse-sweep world — SYNTHETIC. Ten years of EOD chains (2016 -> 2026-03,
+# mirroring PLAN §9.1's sweep window; the 2026-04+ "live-window" analog is
+# reserved for the P6 mystery-trader exercise and is NOT in this world).
+# Era-correct expiries: M/W/F weeklies until mid-2022, Tue/Thu after.
+name: p4-world-10y-synthetic
+seed: 20160104
+start: 2016-01-04
+end: 2026-03-31
+s0: 2000.0
+
+snapshots:
+  eod: true
+  intraday_windows: []
+
+chain:
+  # 40 listed weeklies cover the §8 back-leg prior (+7..+56d) in BOTH eras:
+  # M/W/F (3/wk -> ~13 weeks) and Tue/Thu-added (5/wk -> ~8 weeks).
+  n_weeklies: 40
+  n_monthlies: 1
+  near_band_pct: 0.04
+  span_pct: 0.16
+
+segments:
+  - { length_sessions: 500, mu_annual: 0.11 }
+  - { length_sessions: 60, mu_annual: -0.50, theta_mult: 5.0, lam_mult: 8.0 } # vol event
+  - { length_sessions: 440, mu_annual: 0.14, theta_mult: 1.4 }
+  - { length_sessions: 55, mu_annual: -0.85, theta_mult: 8.0, lam_mult: 12.0 } # crash
+  - { length_sessions: 400, mu_annual: 0.18, theta_mult: 1.6 }
+  - { length_sessions: 380, mu_annual: -0.12, theta_mult: 2.2 } # bear grind
+  - { length_sessions: 420, mu_annual: 0.13 }
+  - { length_sessions: 25, mu_annual: -0.30, theta_mult: 6.0, lam_mult: 10.0 } # vix spike
+  - { length_sessions: 10000, mu_annual: 0.10 }

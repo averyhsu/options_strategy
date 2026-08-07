@@ -1,0 +1,6 @@
+# P4 coarse sweep run parameters (PLAN §9.1). The dimension priors themselves
+# are PLAN §8 and live in sweep/space.py; this file records the run knobs.
+n_configs: 16384
+seed: 20260807
+world: data/synthetic/worlds/p4-world-10y-synthetic
+out_dir: experiments/p4

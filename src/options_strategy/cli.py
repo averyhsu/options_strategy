@@ -11,8 +11,7 @@ from pathlib import Path
 from options_strategy import __version__
 
 _NOT_YET = {
-    "run": "P2",
-    "sweep": "P4",
+    "run": "P5",
     "match": "P6",
     "report": "P6",
 }
@@ -82,6 +81,17 @@ def _cmd_qa(args: argparse.Namespace) -> int:
     return 0 if result.clean else 1
 
 
+def _cmd_sweep(args: argparse.Namespace) -> int:
+    from options_strategy.config import load_config
+    from options_strategy.sweep.runner import run_sweep
+    from options_strategy.sweep.space import SweepRunConfig
+
+    run_cfg = load_config(args.config, SweepRunConfig)
+    summary = run_sweep(run_cfg)
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="options_strategy",
@@ -99,6 +109,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_worldgen.add_argument("--ledger", default="experiments/ledger.parquet")
     p_worldgen.add_argument("--no-ledger", action="store_true")
     p_worldgen.set_defaults(func=_cmd_worldgen)
+
+    p_sweep = sub.add_parser("sweep", help="coarse Track-A parameter sweep (PLAN §9.1)")
+    p_sweep.add_argument("--config", required=True, help="SweepRunConfig YAML")
+    p_sweep.set_defaults(func=_cmd_sweep)
 
     p_qa = sub.add_parser("qa", help="run the data QA gate on a dataset (PLAN §4.2)")
     p_qa.add_argument("--world", required=True, help="dataset root (contains manifest.json)")
