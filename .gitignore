@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage*
+htmlcov/
+.ipynb_checkpoints/
+
+# Licensed/purchased market data — NEVER committed (public repo; see PLAN.md §15)
+data/raw/
+data/vendor/
+
+# Scratch outputs & secrets
+experiments/scratch/
+.env
+
+# OS
+.DS_Store
