@@ -17,6 +17,10 @@ htmlcov/
 data/raw/
 data/vendor/
 
+# Generated synthetic worlds — reproducible from configs + seeds; QA evidence
+# is copied into experiments/ instead
+data/synthetic/
+
 # Scratch outputs & secrets
 experiments/scratch/
 .env

@@ -15,7 +15,19 @@ def test_missing_command_is_usage_error() -> None:
     assert exc.value.code == 2
 
 
-@pytest.mark.parametrize("command", ["qa", "run", "sweep", "match", "report"])
+def test_qa_requires_world_argument() -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["qa"])
+    assert exc.value.code == 2
+
+
+def test_worldgen_requires_config_argument() -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["worldgen"])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("command", ["run", "sweep", "match", "report"])
 def test_unimplemented_subcommands_exit_2(command: str) -> None:
     # Stubs; each is replaced by the real behavior test when its phase lands.
     assert cli.main([command]) == 2

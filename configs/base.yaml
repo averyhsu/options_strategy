@@ -1,0 +1,18 @@
+# Engine defaults (PLAN §3.1). The pydantic model that consumes this lands in
+# P2 (engine core); values here document the calibrated defaults up front.
+# Experiments NEVER edit constants in code — they override these via their own
+# config files.
+
+fees:
+  # per contract per leg; components sum to ~$1.60 all-in (author's IBKR number)
+  commission_per_leg: 0.65
+  exchange_fee_per_leg: 0.65
+  clearing_per_leg: 0.10
+  regulatory_per_leg: 0.20
+
+fill_model: conservative # conservative | mid | optimistic (PLAN §7.2)
+exit_cross_fraction: 1.0 # k_exit: defensive exits cross this fraction of half-spread
+participation_cap: 0.25 # max fraction of displayed size per fill
+
+rf_source: synthetic # synthetic (Pass 1) | tbill_3m (Pass 2)
+account_size: 100000.0 # autonomous default, see ASSUMPTIONS.md
