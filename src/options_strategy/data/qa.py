@@ -77,6 +77,11 @@ class QAConfig(BaseModel):
     # cadences alias their flickers). A real feed freeze hits rich options too,
     # so the detector keeps its power where it matters. See ASSUMPTIONS.md.
     stale_min_premium: float = 2.50
+    # ...and the freeze must happen while same-side neighbors were ticking at
+    # least this fraction of the run's bars (single-dead-quote detector; a
+    # market-wide quiet stretch is not a defect). Full-chain feed freezes are
+    # a coverage concern, revisited with vendor heuristics in Pass 2.
+    stale_neighbor_frac: float = 0.5
     mono_tol_half_spreads: float = 1.0
     fly_tol_half_spreads: float = 1.0
     calendar_tol_half_spreads: float = 1.5
@@ -136,23 +141,31 @@ def _sanity_flags(frame: pl.DataFrame, cfg: QAConfig, bar_minutes: int) -> pl.Da
     if df["ts"].n_unique() > 1:
         stale_bars = max(int(np.ceil(cfg.stale_minutes / bar_minutes)), 1)
         df = df.sort([*_IDENT, "ts"])
-        changed = (
-            (pl.col("bid").diff().over(_IDENT).fill_null(1.0).abs() > 1e-12)
-            | (pl.col("ask").diff().over(_IDENT).fill_null(1.0).abs() > 1e-12)
-        ).cast(pl.Int32)
-        df = df.with_columns(run_id=changed.cum_sum().over(_IDENT))
-        df = df.with_columns(run_pos=pl.int_range(pl.len()).over([*_IDENT, "run_id"]))
+        changed = (pl.col("bid").diff().over(_IDENT).fill_null(1.0).abs() > 1e-12) | (
+            pl.col("ask").diff().over(_IDENT).fill_null(1.0).abs() > 1e-12
+        )
+        df = df.with_columns(_chg=changed)
+        # a freeze is only suspicious if the option's same-side neighbors were
+        # actively ticking meanwhile (a quiet tape freezes low-sensitivity
+        # quotes legitimately; a single dead quote on a live side is a defect)
+        df = df.with_columns(_side_active=pl.col("_chg").max().over(["expiry_date", "cp", "ts"]))
+        df = df.with_columns(run_id=pl.col("_chg").cast(pl.Int32).cum_sum().over(_IDENT))
+        df = df.with_columns(
+            run_pos=pl.int_range(pl.len()).over([*_IDENT, "run_id"]),
+            _activity=pl.col("_side_active").cast(pl.Int32).cum_sum().over([*_IDENT, "run_id"]),
+        )
         stale = (
             pl.when(
                 (pl.col("run_pos") >= stale_bars)
                 & (pl.col("mid") >= cfg.stale_min_premium)
                 & (pl.col("bid") > 0)  # an absent bid is not a live market gone stale
+                & (pl.col("_activity") >= (pl.col("run_pos") * cfg.stale_neighbor_frac))
             )
             .then(FLAG_STALE)
             .otherwise(0)
         )
         df = df.with_columns(flags=(pl.col("flags") + stale).cast(pl.Int32)).drop(
-            ["run_id", "run_pos"]
+            ["run_id", "run_pos", "_chg", "_side_active", "_activity"]
         )
     return df
 
