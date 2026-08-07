@@ -1,6 +1,8 @@
 # PROGRESS.md — phase completion log
 Append one entry per completed phase: date | phase | git tag | evidence (test run, ledger rows, report paths).
 
+**PASS 1 COMPLETE (2026-08-07, all-synthetic P0->P6; final commit f5b90b9, CI green, tags `phase/p0-complete`..`phase/p6-complete`).** Deliverable: `FINAL_REPORT_SYNTHETIC.md`. Pass 2 (rerun P4->P6 on real data) starts when purchased historical data lands in `data/raw/` — see the handoff note for the exact purchase list (PLAN §4.3).
+
 ## P0 — Bootstrap, scaffold + synthetic world — 2026-08-07
 - **Tag:** `phase/p0-complete`
 - **Repo/CI:** public repo https://github.com/averyhsu/options_strategy, GitHub Actions (ruff + full pytest) green on `main`.
