@@ -1,0 +1,19 @@
+{
+  "idx": 92,
+  "n_live_cycles": 17,
+  "short_put_delta": 0.13148060101084413,
+  "short_call_delta": 0.4637837904505432,
+  "long_put_offset_days": 39,
+  "long_call_offset_days": 47,
+  "long_strike_offset": 35.0,
+  "credit_threshold_frac": 0.2174426931887865,
+  "threshold_reference": "width",
+  "require_credit": false,
+  "min_credit_frac": 0.18655909560620787,
+  "regime_action": "trade_all",
+  "ema_len": 34,
+  "hysteresis": 0.5,
+  "defense": "none",
+  "risk_definition": "margin",
+  "risk_fraction": 0.15
+}

@@ -1,0 +1,17 @@
+[
+ {
+  "fee_multiplier": 1.0,
+  "median_expectancy_per_cycle": 1072.1518554426002,
+  "share_positive": 1.0
+ },
+ {
+  "fee_multiplier": 2.0,
+  "median_expectancy_per_cycle": 1013.9591681357015,
+  "share_positive": 1.0
+ },
+ {
+  "fee_multiplier": 3.0,
+  "median_expectancy_per_cycle": 1045.448931348778,
+  "share_positive": 1.0
+ }
+]

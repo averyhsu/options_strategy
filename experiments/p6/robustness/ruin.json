@@ -1,0 +1,11 @@
+{
+ "1y": {
+  "p_below_50pct": 0.203,
+  "p_below_30pct": 0.0587
+ },
+ "3y": {
+  "p_below_50pct": 0.5882,
+  "p_below_30pct": 0.3277
+ },
+ "n_weekly_obs": 17376
+}

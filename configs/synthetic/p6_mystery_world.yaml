@@ -1,0 +1,36 @@
+# P6 mystery-trader world — SYNTHETIC (PLAN §12 P6 Pass-1 gate).
+# Same era-correct 10y structure as the P4 world but extending through the
+# "live-window" analog 2026-04-01 -> 2026-07-30, where a hidden config's
+# simulated curve becomes the ABC matching target. Different seed: this world
+# is NOT the sweep world.
+name: p6-mystery-world-synthetic
+seed: 20260401
+start: 2016-01-04
+end: 2026-07-31
+s0: 2000.0
+
+snapshots:
+  eod: true
+  intraday_windows: []
+
+chain:
+  n_weeklies: 40
+  n_monthlies: 1
+  near_band_pct: 0.04
+  span_pct: 0.16
+
+segments:
+  - { length_sessions: 480, mu_annual: 0.12 }
+  - { length_sessions: 70, mu_annual: -0.45, theta_mult: 5.0, lam_mult: 8.0 }
+  - { length_sessions: 430, mu_annual: 0.15, theta_mult: 1.4 }
+  - { length_sessions: 50, mu_annual: -0.80, theta_mult: 8.0, lam_mult: 12.0 }
+  - { length_sessions: 420, mu_annual: 0.16, theta_mult: 1.5 }
+  - { length_sessions: 360, mu_annual: -0.10, theta_mult: 2.0 }
+  - { length_sessions: 440, mu_annual: 0.12 }
+  - { length_sessions: 30, mu_annual: -0.25, theta_mult: 5.0, lam_mult: 9.0 }
+  - { length_sessions: 10000, mu_annual: 0.11 }
+
+forced_events:
+  # a weekend-gap event INSIDE the live-window analog, so the mystery curve
+  # carries an F4-style DD-date constraint for the matcher
+  - { session: 2026-07-13, gap_pct: -0.045, vol_mult: 2.5 }
