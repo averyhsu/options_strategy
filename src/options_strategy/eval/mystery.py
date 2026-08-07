@@ -243,7 +243,8 @@ def _report(summary: dict, dim_report: list[dict], truth: dict, accepted: list[d
         "covers the hidden config on every IDENTIFIED dimension (plateau",
         "  marginals ~ the prior carry no information and cannot contradict truth;",
         "  their truth-in-range status is still reported below)",
-        f"- DD-date hard constraint (+/-2d) passed by {summary['n_hard_pass_dd_dates']:,} candidates",
+        f"- DD-date hard constraint (+/-2d) passed by "
+        f"{summary['n_hard_pass_dd_dates']:,} candidates",
         f"- accepted set: {summary['n_accepted']} configs (eps = {summary['eps']:.4f})",
         f"- dimensions identified (spread collapsed): {summary['n_dims_identified']}"
         f" of {len(dim_report)} — the rest are honest plateaus (PLAN §9.3 expects this)",
@@ -252,9 +253,10 @@ def _report(summary: dict, dim_report: list[dict], truth: dict, accepted: list[d
         "|---|---|---|---|---|",
     ]
     for d in dim_report:
+        in_region = "yes" if summary["dims_covered"][d["dim"]] else "no"
         lines.append(
             f"| {d['dim']} | {d['truth']} | {d['accepted']} "
-            f"| {'YES' if d['identified'] else 'plateau'} | {'yes' if summary['dims_covered'][d['dim']] else 'no'} |"
+            f"| {'YES' if d['identified'] else 'plateau'} | {in_region} |"
         )
     lines += [
         "",

@@ -131,7 +131,7 @@ def abc_match(
             continue
         dists[i] = distance(fp, target, scales, curve_scale, weights)
     hard_pass = np.isfinite(dists)
-    n_accept = max(int(round(accept_frac * len(candidates))), 1)
+    n_accept = max(round(accept_frac * len(candidates)), 1)
     if hard_pass.sum() == 0:
         return AbcResult(dists, float("inf"), np.array([], dtype=int), 0)
     order = np.argsort(dists)
