@@ -78,8 +78,11 @@ class Broker:
         return [o for o in self.orders.values() if o.state is OrderState.OPEN]
 
     def evaluate(self, view: MarketView) -> None:
+        live = self.open_orders()
+        if not live:
+            return  # building the quote index is expensive; skip idle bars
         quotes = view.quotes()
-        for order in self.open_orders():
+        for order in live:
             if order.good_until is not None and view.ts > order.good_until:
                 order.state = OrderState.EXPIRED
                 continue
@@ -162,7 +165,10 @@ def run_backtest(
     for sess_i, session in enumerate(session_list):
         _settle(portfolio, settle_table, expiries, session, kind="AM")
 
-        quotes_day = adapter.option_quotes(session)
+        quotes_day = adapter.option_quotes(
+            session,
+            columns=[*key_cols, "am_pm_settle", "bid", "ask", "bid_size", "ask_size"],
+        )
         quotes_day = quotes_day.join(
             flags_all.select([*key_cols, "flags"]), on=key_cols, how="left"
         ).with_columns(pl.col("flags").fill_null(0))

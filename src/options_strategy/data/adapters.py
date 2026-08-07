@@ -49,11 +49,11 @@ class SyntheticWorldAdapter:
     def settlements(self) -> pl.DataFrame:
         return pl.read_parquet(self.paths.settlements)
 
-    def option_quotes(self, session: dt.date) -> pl.DataFrame:
+    def option_quotes(self, session: dt.date, columns: list[str] | None = None) -> pl.DataFrame:
         f = self.paths.quotes_dir / f"date={session.isoformat()}.parquet"
         if not f.exists():
             raise FileNotFoundError(f"no quotes for session {session}")
-        return pl.read_parquet(f)
+        return pl.read_parquet(f, columns=columns)
 
     def quality_flags(self) -> pl.DataFrame:
         f = self.paths.qa_dir / "quality_flags.parquet"

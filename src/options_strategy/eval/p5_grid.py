@@ -54,7 +54,10 @@ DEFENSE_VARIANTS: list[tuple[str, DefenseConfig]] = [
 FILL_MODELS = (FillModel.CONSERVATIVE, FillModel.MID)
 
 
-def select_configs(sweep_metrics: Path, n: int) -> list[dict]:
+def select_configs(sweep_metrics: Path, n: int, world_root: str | None = None) -> list[dict]:
+    """Near-miss P4 configs (credit-required), optionally pre-screened for
+    actually trading on the target world (a config whose credit threshold
+    never clears there produces an empty, useless grid row)."""
     df = pl.read_parquet(sweep_metrics)
     near_miss = df.filter(
         (pl.col("prune_reasons") != "")
@@ -67,8 +70,34 @@ def select_configs(sweep_metrics: Path, n: int) -> list[dict]:
         if near_miss.height >= n
         else df.filter((pl.col("n_cycles") >= 30) & pl.col("require_credit"))
     )
-    picked = pool.sort("weekly_wr", descending=True).head(n)
-    return [{k: r[k] for k in DIM_NAMES} for r in picked.iter_rows(named=True)]
+    ranked = [
+        {k: r[k] for k in DIM_NAMES}
+        for r in pool.sort("weekly_wr", descending=True).iter_rows(named=True)
+    ]
+    if world_root is None:
+        return ranked[:n]
+
+    from options_strategy.sweep.fast_runner import run_config as fast_run
+    from options_strategy.sweep.precompute import build_cache
+
+    adapter = SyntheticWorldAdapter(world_root)
+    combos = sorted({(p["ema_len"], p["hysteresis"]) for p in ranked})
+    cache = build_cache(adapter, combos)
+    engine = EngineConfig()
+    kept: list[dict] = []
+    for params in ranked:
+        res = fast_run(
+            cache,
+            weekly_config(params),
+            engine.account_size,
+            engine.fees.per_contract_leg,
+            engine.participation_cap,
+        )
+        if res.n_fills >= 2:  # trades at least twice on this world (EOD probe)
+            kept.append(params)
+        if len(kept) >= n:
+            break
+    return kept
 
 
 def _to_resting(params: dict, defense: DefenseConfig) -> WeeklyConfig:
@@ -87,7 +116,14 @@ def run_p5_grid(
     out_dir: str,
     n_configs: int = 8,
     engine_cfg: EngineConfig | None = None,
+    max_seconds: float | None = None,
 ) -> dict:
+    """Checkpoint-resumable: call repeatedly with a wall-time budget until the
+    returned summary has done == total (long processes get jetsam-killed on
+    this box)."""
+    import time as _time
+
+    t_start = _time.time()
     engine_cfg = engine_cfg or EngineConfig()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -100,17 +136,21 @@ def run_p5_grid(
         done = {(r["config_idx"], r["defense"], r["fill_model"]) for r in rows}
 
     adapter = SyntheticWorldAdapter(world_root)
-    configs = select_configs(Path(sweep_metrics), n_configs)
+    configs = select_configs(Path(sweep_metrics), n_configs, world_root=world_root)
     defense_rows: list[dict] = []
     git_sha = ledger.current_git_sha()
     ledger_rows: list[ledger.LedgerRow] = []
 
+    budget_exhausted = False
     for ci, params in enumerate(configs):
         for dname, defense in DEFENSE_VARIANTS:
             for fm in FILL_MODELS:
                 key = (ci, dname, fm.value)
                 if key in done:
                     continue
+                if max_seconds is not None and _time.time() - t_start > max_seconds:
+                    budget_exhausted = True
+                    break
                 cfg = _to_resting(params, defense)
                 strat = DoubleDiagonalWeekly(cfg)
                 res = run_backtest(
@@ -162,6 +202,10 @@ def run_p5_grid(
                     )
                 )
                 pl.DataFrame(rows).write_parquet(results_path)  # checkpoint every run
+            if budget_exhausted:
+                break
+        if budget_exhausted:
+            break
 
     if defense_rows:
         new_logs = pl.DataFrame(defense_rows)
@@ -173,14 +217,18 @@ def run_p5_grid(
         ledger.append(ledger_rows)
 
     df = pl.DataFrame(rows)
-    (out / "p5_report.md").write_text(_report(df, configs, adapter.data_version))
+    total = len(configs) * len(DEFENSE_VARIANTS) * len(FILL_MODELS)
     summary = {
-        "n_runs": df.height,
+        "n_runs_done": df.height,
+        "n_runs_total": total,
+        "complete": df.height >= total,
         "n_configs": len(configs),
         "n_defense_variants": len(DEFENSE_VARIANTS),
         "data_version": adapter.data_version,
     }
-    (out / "p5_summary.json").write_text(json.dumps(summary, indent=2))
+    if summary["complete"]:
+        (out / "p5_report.md").write_text(_report(df, configs, adapter.data_version))
+        (out / "p5_summary.json").write_text(json.dumps(summary, indent=2))
     return summary
 
 

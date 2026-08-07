@@ -98,15 +98,22 @@ class MarketView:
 
     def quotes(self) -> dict[OptionKey, LegQuote]:
         if self._quote_index is None:
+            c = self._chain
             idx: dict[OptionKey, LegQuote] = {}
-            for r in self._chain.iter_rows(named=True):
-                key = OptionKey(r["root"], r["expiry_date"], r["strike"], r["cp"])
-                idx[key] = LegQuote(
-                    bid=r["bid"],
-                    ask=r["ask"],
-                    bid_size=r["bid_size"],
-                    ask_size=r["ask_size"],
-                    sane=(r["flags"] == 0),
+            for root, expiry, strike, cp, bid, ask, bsz, asz, flags in zip(
+                c["root"].to_list(),
+                c["expiry_date"].to_list(),
+                c["strike"].to_list(),
+                c["cp"].to_list(),
+                c["bid"].to_list(),
+                c["ask"].to_list(),
+                c["bid_size"].to_list(),
+                c["ask_size"].to_list(),
+                c["flags"].to_list(),
+                strict=True,
+            ):
+                idx[OptionKey(root, expiry, strike, cp)] = LegQuote(
+                    bid=bid, ask=ask, bid_size=bsz, ask_size=asz, sane=(flags == 0)
                 )
             self._quote_index = idx
         return self._quote_index

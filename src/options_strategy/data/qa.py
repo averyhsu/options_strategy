@@ -77,11 +77,13 @@ class QAConfig(BaseModel):
     # cadences alias their flickers). A real feed freeze hits rich options too,
     # so the detector keeps its power where it matters. See ASSUMPTIONS.md.
     stale_min_premium: float = 2.50
-    # ...and the freeze must happen while same-side neighbors were ticking at
-    # least this fraction of the run's bars (single-dead-quote detector; a
-    # market-wide quiet stretch is not a defect). Full-chain feed freezes are
-    # a coverage concern, revisited with vendor heuristics in Pass 2.
-    stale_neighbor_frac: float = 0.5
+    # ...and the freeze only counts if the quote PROVABLY should have moved:
+    # at some bar of the run, |S(t) - S(run start)| x the option's local
+    # finite-difference delta (slope of mids across adjacent strikes) exceeded
+    # this many ticks. Quiet-tape round-trips stay legitimate; a dead quote
+    # under real displacement is a defect. Full-chain feed freezes are a
+    # coverage concern, revisited with vendor heuristics in Pass 2.
+    stale_tick_multiple: float = 1.5
     mono_tol_half_spreads: float = 1.0
     fly_tol_half_spreads: float = 1.0
     calendar_tol_half_spreads: float = 1.5
@@ -126,7 +128,12 @@ def _tick_ok(price: pl.Expr) -> pl.Expr:
     return ((price / tick) - (price / tick).round(0)).abs() * tick < 1e-6
 
 
-def _sanity_flags(frame: pl.DataFrame, cfg: QAConfig, bar_minutes: int) -> pl.DataFrame:
+def _sanity_flags(
+    frame: pl.DataFrame,
+    cfg: QAConfig,
+    bar_minutes: int,
+    spot_by_ts: pl.DataFrame | None = None,
+) -> pl.DataFrame:
     df = frame.with_columns(
         mid=(pl.col("bid") + pl.col("ask")) / 2.0,
         half=(pl.col("ask") - pl.col("bid")) / 2.0,
@@ -138,34 +145,50 @@ def _sanity_flags(frame: pl.DataFrame, cfg: QAConfig, bar_minutes: int) -> pl.Da
     )
     df = df.with_columns(flags=(crossed + locked + off_tick).cast(pl.Int32))
 
-    if df["ts"].n_unique() > 1:
+    if df["ts"].n_unique() > 1 and spot_by_ts is not None:
         stale_bars = max(int(np.ceil(cfg.stale_minutes / bar_minutes)), 1)
+        df = df.join(spot_by_ts, on="ts", how="left")
+        # local |delta| proxy: slope of mids across adjacent strikes (|dV/dK|
+        # ~ |N(d2)| ~ |delta|), one-sided at band edges
+        df = df.sort(["expiry_date", "cp", "ts", "strike"])
+        grp = ["expiry_date", "cp", "ts"]
+        mid_up = pl.col("mid").shift(-1).over(grp)
+        mid_dn = pl.col("mid").shift(1).over(grp)
+        k_up = pl.col("strike").shift(-1).over(grp)
+        k_dn = pl.col("strike").shift(1).over(grp)
+        sens = ((mid_up - mid_dn) / (k_up - k_dn)).abs()
+        sens_one_up = ((mid_up - pl.col("mid")) / (k_up - pl.col("strike"))).abs()
+        sens_one_dn = ((pl.col("mid") - mid_dn) / (pl.col("strike") - k_dn)).abs()
+        df = df.with_columns(
+            _sens=sens.fill_null(sens_one_up).fill_null(sens_one_dn).fill_null(0.0)
+        )
+
         df = df.sort([*_IDENT, "ts"])
         changed = (pl.col("bid").diff().over(_IDENT).fill_null(1.0).abs() > 1e-12) | (
             pl.col("ask").diff().over(_IDENT).fill_null(1.0).abs() > 1e-12
         )
-        df = df.with_columns(_chg=changed)
-        # a freeze is only suspicious if the option's same-side neighbors were
-        # actively ticking meanwhile (a quiet tape freezes low-sensitivity
-        # quotes legitimately; a single dead quote on a live side is a defect)
-        df = df.with_columns(_side_active=pl.col("_chg").max().over(["expiry_date", "cp", "ts"]))
-        df = df.with_columns(run_id=pl.col("_chg").cast(pl.Int32).cum_sum().over(_IDENT))
+        df = df.with_columns(run_id=changed.cast(pl.Int32).cum_sum().over(_IDENT))
+        run = [*_IDENT, "run_id"]
+        tick = pl.when(pl.col("mid") < 3.0).then(0.05).otherwise(0.10)
+        should_have_moved = (pl.col("_spot") - pl.col("_spot").first().over(run)).abs() * pl.col(
+            "_sens"
+        ) >= cfg.stale_tick_multiple * tick
         df = df.with_columns(
-            run_pos=pl.int_range(pl.len()).over([*_IDENT, "run_id"]),
-            _activity=pl.col("_side_active").cast(pl.Int32).cum_sum().over([*_IDENT, "run_id"]),
+            run_pos=pl.int_range(pl.len()).over(run),
+            _provable=should_have_moved.cast(pl.Int32).cum_max().over(run),
         )
         stale = (
             pl.when(
                 (pl.col("run_pos") >= stale_bars)
                 & (pl.col("mid") >= cfg.stale_min_premium)
                 & (pl.col("bid") > 0)  # an absent bid is not a live market gone stale
-                & (pl.col("_activity") >= (pl.col("run_pos") * cfg.stale_neighbor_frac))
+                & (pl.col("_provable") >= 1)
             )
             .then(FLAG_STALE)
             .otherwise(0)
         )
         df = df.with_columns(flags=(pl.col("flags") + stale).cast(pl.Int32)).drop(
-            ["run_id", "run_pos", "_chg", "_side_active", "_activity"]
+            ["run_id", "run_pos", "_sens", "_spot", "_provable"]
         )
     return df
 
@@ -322,14 +345,58 @@ def _calendar_check(
     return viol_rows, n_viol
 
 
-def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
+def qa_chunk(
+    world_root: Path | str,
+    cfg: QAConfig | None = None,
+    chunk_idx: int = 0,
+    chunk_size: int = 15,
+) -> Path:
+    """Process one block of session files and checkpoint the results.
+
+    Idempotent per chunk (this 8GB box jetsams long-lived processes, so QA of
+    large worlds runs as short chunked processes). NOTE: after changing any
+    detector, delete <world>/qa/chunks before re-running.
+    """
     cfg = cfg or QAConfig()
     paths = WorldPaths(Path(world_root))
-    if not paths.manifest.exists():
-        raise FileNotFoundError(f"no manifest at {paths.manifest} — not a dataset root")
-    manifest = json.loads(paths.manifest.read_text())
-    sessions = pl.read_parquet(paths.sessions)
+    cdir = paths.qa_dir / "chunks"
+    cdir.mkdir(parents=True, exist_ok=True)
+    marker = cdir / f"chunk_{chunk_idx:04d}.json"
+    if marker.exists():
+        return marker
 
+    files = paths.quote_files()[chunk_idx * chunk_size : (chunk_idx + 1) * chunk_size]
+    sessions = pl.read_parquet(paths.sessions)
+    spot_by_ts = pl.read_parquet(paths.underlying).select("ts", pl.col("close").alias("_spot"))
+    acc = _process_files(files, cfg, sessions, spot_by_ts)
+    (
+        pl.concat(acc["flag_frames"]).sort(_KEY)
+        if acc["flag_frames"]
+        else pl.DataFrame(schema=_FLAGS_SCHEMA)
+    ).write_parquet(cdir / f"flags_{chunk_idx:04d}.parquet")
+    (
+        pl.DataFrame(acc["parity_rows"], schema_overrides=_FORWARDS_SCHEMA)
+        if acc["parity_rows"]
+        else pl.DataFrame(schema=_FORWARDS_SCHEMA)
+    ).write_parquet(cdir / f"forwards_{chunk_idx:04d}.parquet")
+    pl.DataFrame(acc["coverage_rows"]).write_parquet(cdir / f"coverage_{chunk_idx:04d}.parquet")
+    marker.write_text(
+        json.dumps(
+            {
+                "n_files": len(files),
+                "structure_counts": acc["structure_counts"],
+                "n_calendar_viol": acc["n_calendar_viol"],
+                "n_parity_bad": acc["n_parity_bad"],
+                "n_rows_total": acc["n_rows_total"],
+            }
+        )
+    )
+    return marker
+
+
+def _process_files(
+    files: list[Path], cfg: QAConfig, sessions: pl.DataFrame, spot_by_ts: pl.DataFrame
+) -> dict:
     flag_frames: list[pl.DataFrame] = []
     parity_rows: list[dict] = []
     coverage_rows: list[dict] = []
@@ -338,7 +405,7 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
     n_parity_bad = 0
     n_rows_total = 0
 
-    for f in paths.quote_files():
+    for f in files:
         frame = pl.read_parquet(f)
         n_rows_total += frame.height
         ts_unique = frame["ts"].unique().sort()
@@ -346,7 +413,7 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
         if len(ts_unique) > 1:
             bar_minutes = max(int((ts_unique[1] - ts_unique[0]).total_seconds() // 60), 1)
 
-        flagged = _sanity_flags(frame, cfg, bar_minutes)
+        flagged = _sanity_flags(frame, cfg, bar_minutes, spot_by_ts)
         sane = flagged.filter((pl.col("flags") == 0) & (pl.col("bid") > 0))
 
         fits, lookup = _parity_fit(sane, cfg)
@@ -395,22 +462,60 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
             }
         )
 
-    flags_df = (
-        pl.concat(flag_frames).sort(_KEY) if flag_frames else pl.DataFrame(schema=_FLAGS_SCHEMA)
+    return {
+        "flag_frames": flag_frames,
+        "parity_rows": parity_rows,
+        "coverage_rows": coverage_rows,
+        "structure_counts": structure_counts,
+        "n_calendar_viol": n_calendar_viol,
+        "n_parity_bad": n_parity_bad,
+        "n_rows_total": n_rows_total,
+    }
+
+
+def qa_finalize(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
+    """Merge chunk checkpoints into the verdict, reports and final outputs."""
+    cfg = cfg or QAConfig()
+    paths = WorldPaths(Path(world_root))
+    if not paths.manifest.exists():
+        raise FileNotFoundError(f"no manifest at {paths.manifest} — not a dataset root")
+    manifest = json.loads(paths.manifest.read_text())
+    sessions = pl.read_parquet(paths.sessions)
+
+    cdir = paths.qa_dir / "chunks"
+    markers = sorted(cdir.glob("chunk_*.json"))
+    if not markers:
+        raise RuntimeError("no QA chunks found — run qa_chunk first")
+    structure_counts = {"bound": 0, "mono": 0, "fly": 0}
+    n_calendar_viol = n_parity_bad = n_rows_total = n_files = 0
+    for m in markers:
+        meta = json.loads(m.read_text())
+        n_files += meta["n_files"]
+        for k in structure_counts:
+            structure_counts[k] += meta["structure_counts"][k]
+        n_calendar_viol += meta["n_calendar_viol"]
+        n_parity_bad += meta["n_parity_bad"]
+        n_rows_total += meta["n_rows_total"]
+    if n_files != len(paths.quote_files()):
+        raise RuntimeError(f"chunks cover {n_files} files, world has {len(paths.quote_files())}")
+
+    flags_df = pl.concat([pl.read_parquet(p) for p in sorted(cdir.glob("flags_*.parquet"))]).sort(
+        _KEY
     )
-    forwards_df = (
-        pl.DataFrame(parity_rows, schema_overrides=_FORWARDS_SCHEMA).sort(
-            ["ts", "expiry_date", "root"]
-        )
-        if parity_rows
-        else pl.DataFrame(schema=_FORWARDS_SCHEMA)
-    )
+    forwards_df = pl.concat(
+        [pl.read_parquet(p) for p in sorted(cdir.glob("forwards_*.parquet"))]
+    ).sort(["ts", "expiry_date", "root"])
+    coverage_df = pl.concat(
+        [pl.read_parquet(p) for p in sorted(cdir.glob("coverage_*.parquet"))],
+        how="diagonal",
+    ).sort("session")
 
     truth_stats, unexpected, missed = _reconcile_with_truth(paths, flags_df, forwards_df, cfg)
 
-    coverage_df = pl.DataFrame(coverage_rows)
-    missing_bars_total = int(coverage_df["missing_bars"].fill_null(0).sum()) if coverage_rows else 0
-    sessions_without_file = sessions.height - len(coverage_rows)
+    missing_bars_total = (
+        int(coverage_df["missing_bars"].fill_null(0).sum()) if coverage_df.height else 0
+    )
+    sessions_without_file = sessions.height - coverage_df.height
 
     truth_fwd_ok = (
         truth_stats.get("forward_rel_err_max", 0.0) <= cfg.forward_truth_rel_tol
@@ -431,7 +536,7 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
     summary = {
         "clean": clean,
         "n_rows": n_rows_total,
-        "n_sessions": len(coverage_rows),
+        "n_sessions": coverage_df.height,
         "sessions_without_file": sessions_without_file,
         "missing_bars_total": missing_bars_total,
         "n_flagged_rows": int(flags_df.height),
@@ -461,6 +566,23 @@ def run_qa(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult:
         flags_path=flags_path,
         forwards_path=forwards_path,
     )
+
+
+def run_qa(world_root: Path | str, cfg: QAConfig | None = None, chunk_size: int = 15) -> QAResult:
+    """Monolithic convenience: recompute all chunks fresh, then finalize."""
+    import shutil
+
+    paths = WorldPaths(Path(world_root))
+    if not paths.manifest.exists():
+        raise FileNotFoundError(f"no manifest at {paths.manifest} — not a dataset root")
+    cdir = paths.qa_dir / "chunks"
+    if cdir.exists():
+        shutil.rmtree(cdir)
+    n_files = len(paths.quote_files())
+    n_chunks = max((n_files + chunk_size - 1) // chunk_size, 1)
+    for i in range(n_chunks):
+        qa_chunk(world_root, cfg, i, chunk_size)
+    return qa_finalize(world_root, cfg)
 
 
 def _reconcile_with_truth(

@@ -198,8 +198,8 @@ class _MutatedAdapter(SyntheticWorldAdapter):
         super().__init__(root)
         self.cutoff = cutoff
 
-    def option_quotes(self, session: dt.date) -> pl.DataFrame:
-        q = super().option_quotes(session)
+    def option_quotes(self, session: dt.date, columns: list[str] | None = None) -> pl.DataFrame:
+        q = super().option_quotes(session, columns)
         if session <= self.cutoff:
             return q
         return q.with_columns(bid=pl.col("bid") * 1.5 + 0.05, ask=pl.col("ask") * 1.5 + 0.35)
