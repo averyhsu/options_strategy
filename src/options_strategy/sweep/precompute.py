@@ -84,23 +84,37 @@ def build_cache(
         mid=(pl.col("bid") + pl.col("ask")) / 2.0,
         session=pl.col("ts").dt.date(),
     )
+    # LEFT join: quotes of expiries WITHOUT a usable parity fit stay tradeable
+    # (mids, sizes) — fits are only prerequisites for IV/delta/model marks.
     big = big.join(
         forwards_all.select("ts", "expiry_date", "forward_hat", "df_hat", "tau_years", "parity_ok"),
         on=["ts", "expiry_date"],
-        how="inner",
-    ).filter(pl.col("parity_ok"))
+        how="left",
+    ).with_columns(pl.col("parity_ok").fill_null(False))
     big = big.sort(["session", "expiry_date", "cp", "strike"])
 
-    # one giant vectorized IV + delta solve
+    # one giant vectorized IV + delta solve (rows with a parity fit only)
+    ok = big["parity_ok"].to_numpy()
     mid_np = big["mid"].to_numpy()
-    f_np = big["forward_hat"].to_numpy()
+    f_np = big["forward_hat"].fill_null(0.0).to_numpy()
     k_np = big["strike"].to_numpy()
-    tau_np = big["tau_years"].to_numpy()
-    df_np = big["df_hat"].to_numpy()
+    tau_np = big["tau_years"].fill_null(1.0).to_numpy()
+    df_np = big["df_hat"].fill_null(1.0).to_numpy()
     w_np = np.where(big["cp"].to_numpy() == "C", 1, -1)
-    iv_np = implied_vol(mid_np, f_np, k_np, tau_np, df_np, cp=w_np)
-    g = greeks(f_np, k_np, tau_np, np.where(np.isfinite(iv_np), iv_np, 0.2), df_np, cp=w_np)
-    delta_abs = np.where(np.isfinite(iv_np), np.abs(g.delta / df_np), np.nan)
+    iv_np = np.full(len(mid_np), np.nan)
+    iv_np[ok] = implied_vol(mid_np[ok], f_np[ok], k_np[ok], tau_np[ok], df_np[ok], cp=w_np[ok])
+    delta_abs = np.full(len(mid_np), np.nan)
+    solvable = np.isfinite(iv_np)
+    if solvable.any():
+        g = greeks(
+            f_np[solvable],
+            k_np[solvable],
+            tau_np[solvable],
+            iv_np[solvable],
+            df_np[solvable],
+            cp=w_np[solvable],
+        )
+        delta_abs[solvable] = np.abs(g.delta / df_np[solvable])
 
     big = big.with_columns(_iv=pl.Series(iv_np), _delta=pl.Series(delta_abs))
 
@@ -124,7 +138,7 @@ def build_cache(
                 iv=sgrp["_iv"].to_numpy(),
                 delta_abs=sgrp["_delta"].to_numpy(),
             )
-            if expiry not in forwards:
+            if expiry not in forwards and sgrp["parity_ok"][0]:
                 forwards[expiry] = (
                     float(sgrp["forward_hat"][0]),
                     float(sgrp["df_hat"][0]),

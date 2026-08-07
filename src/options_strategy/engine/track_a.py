@@ -108,7 +108,6 @@ def run_track_a(
                 )
                 if side is None or side in cy.defended_sides:
                     continue
-                cy.defended_sides.add(side)
                 short, long_ = (
                     (cy.plan.legs[0][0], cy.plan.legs[2][0])
                     if side == "put"
@@ -122,8 +121,11 @@ def run_track_a(
                     if q is None or not q.sane or q.bid <= 0:
                         ok = False
                         break
-                    mid_debit += ratio * (q.bid + q.ask) / 2.0
+                    mid_debit += ratio * ((q.bid + q.ask) / 2.0)
                 if ok:
+                    # defended only on an EXECUTED close; bad quotes retry the
+                    # next session (never fill against unusable data).
+                    cy.defended_sides.add(side)
                     fake_order_id += 1
                     portfolio.apply_combo_fill(
                         ts=eod_ts,
