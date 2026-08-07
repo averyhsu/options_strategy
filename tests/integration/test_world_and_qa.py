@@ -1,10 +1,8 @@
-import datetime as dt
 import hashlib
 import shutil
 from pathlib import Path
 
 import polars as pl
-import pytest
 
 from options_strategy.data.qa import run_qa
 from options_strategy.data.schemas import (
@@ -16,31 +14,8 @@ from options_strategy.data.schemas import (
     UNDERLYING_BARS_SCHEMA,
     validate_schema,
 )
-from options_strategy.data.synthetic.config import (
-    ChainParams,
-    MicrostructureParams,
-    SnapshotSpec,
-    SyntheticWorldConfig,
-)
-from options_strategy.data.synthetic.world import WorldPaths, generate_world, settle_datetime
-
-TINY_KW = {
-    "seed": 11,
-    "start": dt.date(2026, 3, 2),
-    "end": dt.date(2026, 3, 20),
-    "chain": ChainParams(n_weeklies=3, n_monthlies=1, near_band_pct=0.02, span_pct=0.05),
-    "snapshots": SnapshotSpec(
-        eod=True, intraday_windows=((dt.date(2026, 3, 10), dt.date(2026, 3, 10)),)
-    ),
-}
-
-
-@pytest.fixture(scope="module")
-def clean_world(tmp_path_factory) -> tuple[SyntheticWorldConfig, WorldPaths, dict]:
-    root = tmp_path_factory.mktemp("worlds")
-    cfg = SyntheticWorldConfig(name="tiny-clean-synthetic", **TINY_KW)
-    paths, summary = generate_world(cfg, root)
-    return cfg, paths, summary
+from options_strategy.data.synthetic.config import MicrostructureParams, SyntheticWorldConfig
+from options_strategy.data.synthetic.world import generate_world, settle_datetime
 
 
 def test_all_outputs_conform_to_schemas(clean_world) -> None:
@@ -83,20 +58,19 @@ def test_settlements_match_path_prints_exactly(clean_world) -> None:
         assert row["value"] == expected  # exact, to the bit
 
 
-def test_qa_is_clean_on_pristine_world(clean_world) -> None:
-    _, paths, _ = clean_world
-    result = run_qa(paths.root)
+def test_qa_is_clean_on_pristine_world(clean_world_qa) -> None:
+    result = clean_world_qa
     assert result.summary["truth"]["n_compared"] > 0
     assert result.clean, result.summary
     assert result.report_path.exists()
     assert "SYNTHETIC" in result.report_path.read_text()
 
 
-def test_qa_clean_with_injected_defects_and_all_detected(tmp_path) -> None:
+def test_qa_clean_with_injected_defects_and_all_detected(tmp_path, tiny_world_kwargs) -> None:
     cfg = SyntheticWorldConfig(
         name="tiny-defect-synthetic",
         **{
-            **TINY_KW,
+            **tiny_world_kwargs,
             "micro": MicrostructureParams(stale_rate=0.05, crossed_rate=0.003, locked_rate=0.003),
         },
     )

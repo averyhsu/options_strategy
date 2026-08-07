@@ -22,5 +22,6 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+          mypy
       - name: Test
         run: pytest -n auto

@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict
 
 from options_strategy.data.schemas import ET
 from options_strategy.data.synthetic.world import SECONDS_PER_YEAR, WorldPaths, settle_datetime
+from options_strategy.pricing.forwards import fit_parity
 
 FLAG_CROSSED = 1
 FLAG_LOCKED = 2
@@ -169,29 +170,22 @@ def _parity_fit(sane: pl.DataFrame, cfg: QAConfig) -> tuple[list[dict], dict[tup
             continue
         settle = settle_datetime(expiry, grp["am_pm_settle"][0])
         tau_years = (settle - ts.replace(tzinfo=None)).total_seconds() / SECONDS_PER_YEAR
-        k = grp["strike"].to_numpy()
-        y = (grp["mid"] - grp["mid_p"]).to_numpy()
-        a_mat = np.column_stack([np.ones_like(k), k])
-        coef, _, _, _ = np.linalg.lstsq(a_mat, y, rcond=None)
-        resid = y - a_mat @ coef
-        rmse = float(np.sqrt(np.mean(resid**2)))
-        df_hat = float(-coef[1])
-        f_hat = float(coef[0] / df_hat) if df_hat > 1e-9 else float("nan")
-        ok = bool(rmse <= cfg.parity_rmse_tol and 0.3 < df_hat <= 1.02 and np.isfinite(f_hat))
+        fit = fit_parity(grp["strike"].to_numpy(), grp["mid"].to_numpy(), grp["mid_p"].to_numpy())
+        ok = bool(fit.rmse <= cfg.parity_rmse_tol and fit.plausible)
         fits.append(
             {
                 "ts": ts,
                 "root": root,
                 "expiry_date": expiry,
                 "tau_years": tau_years,
-                "n_strikes": grp.height,
-                "df_hat": df_hat,
-                "forward_hat": f_hat,
-                "rmse": rmse,
+                "n_strikes": fit.n_strikes,
+                "df_hat": fit.df,
+                "forward_hat": fit.forward,
+                "rmse": fit.rmse,
                 "parity_ok": ok,
             }
         )
-        lookup[(ts, root, expiry)] = (df_hat, f_hat, ok)
+        lookup[(ts, root, expiry)] = (fit.df, fit.forward, ok)
     return fits, lookup
 
 
