@@ -58,10 +58,19 @@ Source: a Reddit r/algotrading post (July 2026) plus the author's comment replie
 
 ### 1.6 Track record & claims
 - Backtest "26 years." Can only be the **EMA regime study on candles** — dense SPX weekly chains don't exist for 26 years. The options overlay was necessarily validated on a much shorter window. [derived]
+- **2026-08-10 disclosure (author, pressed for OOS):** there are none — "no OOS results since the strat is too complex to model due to long vega"; daily chain data would have cost ~$10k. [stated]
+- **The backtest was candles-only:** "Backtest consisted of SPX% return weekly above 21 EMA to estimate historical EV" — conditional weekly SPX return distributions above/below the 21-week EMA. The options structure itself (long-vega wing marking, mid-week paths, touch-defense) was **never simulated**. [stated/derived]
+- The ~$500 CBOE data purchase was used **only to price typical spread credits** (a static credit study on one small slice). Kelly ~60%, ~90% WR, and EV ~+$450/contract all derive from that static candle+credit study. [stated/derived]
+- "MaxDD total **-11%**" per the author; he manually front-tests before deploying. [stated]
+- Evidential base for the full strategy as actually traded: **~6 months paper + ~4 months live**. [derived]
 - Paper traded **Oct 2025 – Mar 2026**; live money from **April 2026**. [stated]
 - Live window analyzed here: **2026-04-01 → 2026-07-30**. [screenshots]
+- **Identification prior (2026-08-10):** short strikes were almost certainly placed at **percentiles of the above-EMA weekly-return distribution** (a candle-derived coverage band), not at option-market deltas — that is the only strike-placement rule his stated backtest could have produced. Encoded as the default strike family in §8.1. [derived]
 
 ### 1.7 Known credibility caveats (keep in the final report)
+- **No out-of-sample results, by the author's own admission** (2026-08-10 disclosure): the strategy as traded was never backtested, only the candle-conditional EV study.
+- **The defense — the component he calls the edge — was never backtested or simulated at all**; it exists only in ~6 months of paper trading + ~4 months live. The final report MUST state that the strategy's evidential base is ~6 months paper + ~4 months live.
+- Credits/EV were estimated from one ~$500 options-data slice, likely covering a **single vol regime** — the +$450/contract EV and Kelly ~60% inherit that regime's pricing.
 - Daily-candle backtests cannot validate an intraday touch-defense — the exact component he credits for the edge.
 - Live max DD (11.11%) already ≈ his modeled worst case (~12%): realized variance runs at model ceiling.
 - Net Sharpe ~3 on ~87 daily observations has enormous error bars (Lo 2002 — a paper he himself cited).
@@ -262,10 +271,16 @@ Same strategy config compiled to daily-close logic: entries at close-mid when si
 Everything below is a config field. Ranges = sweep priors.
 
 ### 8.1 Structure
+
+**Strike-placement families (2026-08-10 amendment, per the §1.6 disclosure):** the **DEFAULT family is percentile-band placement** — short strikes at percentiles of the trailing above-EMA weekly-return distribution (candle-derived coverage band), because that is the only rule his stated backtest could have produced. Two-sided coverage q ∈ [0.80, 0.95]; asymmetric tails allowed (q_put ≠ q_call); short strikes at spot × (1 + band edge). Free-delta placement (table below) remains the **fallback family**. If the percentile family matches the fingerprints and free-delta adds no fit, that is itself evidence about his process.
+
 | Param | Range / options | Prior center |
 |---|---|---|
-| short_put_delta | 5–50Δ | 15–30Δ |
-| short_call_delta | 5–50Δ (asymmetric allowed) | 10–25Δ |
+| strike_family | **percentile-band (default)** / free-delta (fallback) | percentile-band |
+| coverage_q_put | 0.80–0.95 (one-sided put coverage of trailing above-EMA weekly-return dist) | 0.85–0.92 |
+| coverage_q_call | 0.80–0.95 (asymmetric allowed) | 0.85–0.92 |
+| short_put_delta | 5–50Δ (free-delta family only) | 15–30Δ |
+| short_call_delta | 5–50Δ (asymmetric allowed; free-delta family only) | 10–25Δ |
 | long_put_expiry | +7d … +90d beyond front | +14…+35d |
 | long_call_expiry | same, may differ from put side | +14…+35d |
 | long_strike_offset | same-strike (calendar) … ±100 pts (diagonal) | 0–50 pts wider |
@@ -287,7 +302,14 @@ Everything below is a config field. Ranges = sweep priors.
   - **rejection:** intraweek touch of EMA±h that closes back on the prior side.
   - **retracement:** in bull state, pullback into EMA±h that holds ≥1 close (his "highest-EV" event).
 - Action mapping (sweep): {trade only in bull; tilt deltas by state (e.g., bear ⇒ wider put wing / skip / invert); trade all events vs. retracement-only weeks}.
-- **Deliverable:** standalone regime study on 1999→present daily/weekly candles reproducing his "3 bad weeks happen below the EMA" claim (or refuting it) — this is the only part of his "26-year backtest" that can exist.
+- **Deliverable (expanded 2026-08-10 — the candle study is now confirmed to be his ENTIRE backtest; replicate it end-to-end on real candles):** `reports/candle_study.md`, a data-replication study of the OP's research process (candles-only; makes NO claims about the options strategy):
+  - (a) conditional weekly-return distributions above/below the 21-week EMA;
+  - (b) the implied coverage bands and their strike distances (feeds the §8.1 percentile family);
+  - (c) **inverse solve on his claims:** for each coverage q ∈ [0.80, 0.95], compute the credit (as % of risk) and win/loss profile REQUIRED to reproduce Kelly ~60%, win ~+30% of risk, and EV ~+$450/contract, and state whether the required credits are plausible — final verification of actual credits waits for Pass 2 options data;
+  - (d) verify or refute "3 consecutive bad weeks happen below the EMA";
+  - (e) using daily highs/lows, tabulate the historical weeks in which the index would have TOUCHED each candidate band edge intraweek — the defense-activation calendar.
+
+  Report contains aggregate statistics, tables, and figures only — no reproducible raw data rows. Data: free daily sources under `data/raw/free/` (gitignored), sources labeled in the report.
 
 ### 8.4 Defense policy (the claimed edge; least identified — model as policy space)
 - **trigger:** {index touches short strike (intraday), index closes beyond short strike, short-leg delta > d ∈ [0.4, 0.6], position P&L < −y·R, y ∈ [0.3, 1.0]}
@@ -365,6 +387,11 @@ Phases execute strictly in order but with **no human gate between them**. For th
 **Pass structure:**
 - **Pass 1 (now):** P0 → P6 entirely on synthetic data — a full-system dress rehearsal. The Pass-1 final report is titled `FINAL_REPORT_SYNTHETIC.md`, labeled SYNTHETIC throughout, and draws **no real-market conclusions**. On completion, stop and tell the user exactly what data to purchase (§4.3).
 - **Pass 2 (when purchased data lands in `data/raw/`):** build the actual vendor adapter (P1 addendum), run `options_strategy qa`, bump `data_version`, rerun P2 invariants, then rerun P4 → P6 on real data to produce the true final report.
+
+**Pass rules clarification (2026-08-10, user-approved):**
+- The expanded §8.3 candle study runs immediately, on REAL free daily data (`data/raw/free/`). It is a **data-replication study of the OP's research process, not a strategy simulation**, so it is an explicit user-approved exception to Pass 1's synthetic-only rule, and its conclusions ARE real-market conclusions about his methodology. It is labeled candles-only and makes no claims about the options strategy.
+- Free data under `data/raw/free/` (gitignored like everything under `data/`) does NOT trigger Pass 2. **Pass 2 triggers only when purchased intraday OPTIONS data lands in `data/raw/`.**
+- The strategy-simulation phases remain synthetic until Pass 2, unchanged. P4+ re-runs with the §8.1 percentile-band family are SYNTHETIC re-runs (Pass-1 machinery validation with the new family), tagged distinctly; the real-data runs happen in Pass 2 as always.
 
 **P0 — Bootstrap, scaffold + synthetic world.** Git bootstrap: `git init -b main` in the project folder (it is NOT yet a git repo), create `.gitignore` (Python caches, `.venv/`, `data/raw/`, `data/vendor/`, scratch outputs) and a minimal `README.md` (points to CLAUDE.md/PLAN.md, research-only disclaimer), initial commit under the user's git identity, create GitHub remote and push (`gh repo create options_strategy --public --source=. --push` via the user's authenticated `gh`), GitHub Actions CI (ruff + full pytest) on `main`. Then repo per §3.1, conda env (`options_strategy`, python 3.12; user directive 2026-08-06), config system, ledger, synthetic generator (§5). ✅ AC: repo on GitHub with Actions green; `options_strategy qa` clean on synthetic; deterministic regeneration.
 
