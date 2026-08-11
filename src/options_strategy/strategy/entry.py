@@ -25,6 +25,12 @@ class EntryConfig(BaseModel):
     # eod_mid: fill the full size at the entry-session CLOSE MID when the base
     #          threshold is met — the EOD-expressible mode Track A compiles to
     #          (PLAN §7.5; used by the A==B consistency test).
+    # eod_immediate: marketable order at the entry-session close, paying
+    #          mid + k_exit * half-spread (evaluate_immediate pricing). The
+    #          only Track-B-fillable entry for DEBIT structures under
+    #          CONSERVATIVE/MID (a debit can't rest at a credit limit and a
+    #          limit AT mid only fills under OPTIMISTIC) — used by the
+    #          percentile-family companion grid (ASSUMPTIONS.md 2026-08-11).
     execution: str = "resting"
     order_window: str = "fri_open_close"  # fri_open_close | thu14_fri_close
     ladder_rungs: int = 1  # 1..3, rising thresholds

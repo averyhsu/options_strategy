@@ -54,21 +54,38 @@ DEFENSE_VARIANTS: list[tuple[str, DefenseConfig]] = [
 FILL_MODELS = (FillModel.CONSERVATIVE, FillModel.MID)
 
 
-def select_configs(sweep_metrics: Path, n: int, world_root: str | None = None) -> list[dict]:
+def select_configs(
+    sweep_metrics: Path,
+    n: int,
+    world_root: str | None = None,
+    family: str | None = None,
+    require_credit_only: bool = True,
+) -> list[dict]:
     """Near-miss P4 configs (credit-required), optionally pre-screened for
     actually trading on the target world (a config whose credit threshold
-    never clears there produces an empty, useless grid row)."""
+    never clears there produces an empty, useless grid row).
+
+    `family` restricts the pool to one §8.1 strike family: the WR-ranked pool
+    is delta-dominated on the synthetic surface, and a v2 grid that never runs
+    the DEFAULT (percentile) family through Track B would miss the point of
+    the 2026-08-10 rerun. `require_credit_only=False` relaxes the credit-
+    required restriction — needed for the percentile family, whose structures
+    price as DEBITS everywhere on the synthetic surface (0/4096 credit-
+    required percentile configs ever traded in p4 v2; ASSUMPTIONS.md)."""
     df = pl.read_parquet(sweep_metrics)
+    if family is not None:
+        df = df.filter(pl.col("strike_family") == family)
+    credit_gate = pl.col("require_credit") if require_credit_only else pl.lit(True)
     near_miss = df.filter(
         (pl.col("prune_reasons") != "")
         & (~pl.col("prune_reasons").str.contains(","))
         & (pl.col("prune_reasons") != "no_trades")
-        & pl.col("require_credit")
+        & credit_gate
     )
     pool = (
         near_miss
         if near_miss.height >= n
-        else df.filter((pl.col("n_cycles") >= 30) & pl.col("require_credit"))
+        else df.filter((pl.col("n_cycles") >= 30) & credit_gate)
     )
     ranked = [
         {k: r[k] for k in DIM_NAMES}
@@ -100,11 +117,15 @@ def select_configs(sweep_metrics: Path, n: int, world_root: str | None = None) -
     return kept
 
 
-def _to_resting(params: dict, defense: DefenseConfig) -> WeeklyConfig:
+def _to_resting(params: dict, defense: DefenseConfig, execution: str = "resting") -> WeeklyConfig:
+    """Track-B form of a sweep config. `execution="eod_mid"` is the debit-
+    structure form: resting orders rest at CREDIT limits and can never fill a
+    debit structure (v1 selection rule), so the percentile-family companion
+    grid enters at the close mid instead — intraday defense is unaffected."""
     cfg = weekly_config(params)
     return cfg.model_copy(
         update={
-            "entry": cfg.entry.model_copy(update={"execution": "resting"}),
+            "entry": cfg.entry.model_copy(update={"execution": execution}),
             "defense": defense,
         }
     )
@@ -117,6 +138,9 @@ def run_p5_grid(
     n_configs: int = 8,
     engine_cfg: EngineConfig | None = None,
     max_seconds: float | None = None,
+    family: str | None = None,
+    require_credit_only: bool = True,
+    execution: str = "resting",
 ) -> dict:
     """Checkpoint-resumable: call repeatedly with a wall-time budget until the
     returned summary has done == total (long processes get jetsam-killed on
@@ -136,7 +160,13 @@ def run_p5_grid(
         done = {(r["config_idx"], r["defense"], r["fill_model"]) for r in rows}
 
     adapter = SyntheticWorldAdapter(world_root)
-    configs = select_configs(Path(sweep_metrics), n_configs, world_root=world_root)
+    configs = select_configs(
+        Path(sweep_metrics),
+        n_configs,
+        world_root=world_root,
+        family=family,
+        require_credit_only=require_credit_only,
+    )
     defense_rows: list[dict] = []
     git_sha = ledger.current_git_sha()
     ledger_rows: list[ledger.LedgerRow] = []
@@ -151,7 +181,7 @@ def run_p5_grid(
                 if max_seconds is not None and _time.time() - t_start > max_seconds:
                     budget_exhausted = True
                     break
-                cfg = _to_resting(params, defense)
+                cfg = _to_resting(params, defense, execution)
                 strat = DoubleDiagonalWeekly(cfg)
                 res = run_backtest(
                     adapter,

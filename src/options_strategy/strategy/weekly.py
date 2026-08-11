@@ -137,7 +137,7 @@ class DoubleDiagonalWeekly:
 
     def _maybe_enter(self, view: MarketView, portfolio: Portfolio, broker: BrokerLike) -> None:
         is_entry = self._is_entry_session(view)
-        eod_mode = self.cfg.entry.execution == "eod_mid"
+        eod_mode = self.cfg.entry.execution in ("eod_mid", "eod_immediate")
         if eod_mode:
             if not (is_entry and view.is_last_bar_of_session):
                 return
@@ -195,11 +195,18 @@ class DoubleDiagonalWeekly:
                 self._entry_sessions_handled.add(entry_session)
                 self._log_skip(entry_session, "credit below threshold at close")
                 return
-            cycle.order_ids.append(
-                broker.submit(
-                    legs=plan.legs, qty=qty, max_net_debit=-plan.mid_credit, good_until=gu
+            if self.cfg.entry.execution == "eod_immediate":
+                # marketable close order: fills at mid + k_exit * half-spread —
+                # the only fillable Track-B entry for debit structures
+                cycle.order_ids.append(
+                    broker.submit(legs=plan.legs, qty=qty, max_net_debit=None, immediate=True)
                 )
-            )
+            else:
+                cycle.order_ids.append(
+                    broker.submit(
+                        legs=plan.legs, qty=qty, max_net_debit=-plan.mid_credit, good_until=gu
+                    )
+                )
         else:
             for rung_qty, threshold in zip(
                 split_quantity(qty, len(thresholds)), thresholds, strict=True
