@@ -120,3 +120,24 @@ OPTIMISTIC is never headlined (PLAN §7.2).
 Purchase per PLAN §4.3 (see the Pass-1 handoff note), drop files under
 `data/raw/`, build the vendor adapter, run `options_strategy qa`, bump
 `data_version`, rerun P2 invariants, then rerun P4 -> P6 on real data.
+
+## Addendum (2026-08-11): candles-only disclosure + percentile-family re-runs
+
+After Pass 1 closed, the author disclosed (2026-08-10) that his entire backtest
+was candles-only with NO out-of-sample results and the defense never simulated
+(PLAN §1.6/§1.7). Two consequences, both delivered:
+
+- **`reports/candle_study.md`** — his research process replicated end-to-end on
+  REAL free daily candles (explicit user-approved Pass-1 exception; candles-only,
+  no options simulated). Notably: his claimed WR maps to coverage q≈0.94–0.95,
+  his Kelly/EV claims are internally consistent at ~30%-of-risk credits, and
+  "3 bad weeks happen below the EMA" is refuted as an entry-visible rule.
+- **P4–P6 v2 SYNTHETIC re-runs** (`experiments/{p4v2,p5v2,p5v2_percentile,p6v2}/`,
+  summary in `experiments/p6v2/rerun_summary.md`) with the percentile-band strike
+  family as the §8.1 default: 0 survivors again (WR floor binds), mystery gate
+  PASS on all 18 dims, DSR 0.210 / PBO 0.505, and a structural finding —
+  percentile-band strikes never price as credits on this synthetic surface, so
+  the author's stated mechanism awaits real-chain credit verification in Pass 2.
+
+The strategy's evidential base, per the author's own disclosure, is ~6 months
+paper + ~4 months live. SYNTHETIC labels and Pass-2 preconditions unchanged.

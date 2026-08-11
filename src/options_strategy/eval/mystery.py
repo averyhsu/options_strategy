@@ -40,15 +40,15 @@ RF_ANNUAL = 0.0262
 CHUNK = 2048
 
 CATEGORICAL_DIMS = {
-    "threshold_reference",
-    "require_credit",
-    "regime_action",
-    "ema_len",
-    "hysteresis",
-    "defense",
-    "risk_definition",
-    "risk_fraction",
-    "strike_family",
+    "threshold_reference": 3,  # dim -> cardinality of its option set (space.py)
+    "require_credit": 2,
+    "regime_action": 4,
+    "ema_len": 3,
+    "hysteresis": 3,
+    "defense": 2,
+    "risk_definition": 3,
+    "risk_fraction": 3,
+    "strike_family": 2,
 }
 
 
@@ -195,7 +195,11 @@ def _dim_coverage(accepted: list[dict], truth: dict) -> tuple[list[dict], dict[s
         if dim in CATEGORICAL_DIMS:
             values = sorted({str(v) for v in acc_vals})
             cov = str(tv) in values or len(values) == 0
-            identified = len(values) <= 2 and len(values) > 0
+            # identified = the accepted set is a STRICT subset of the option
+            # set: a binary dim whose accepted set contains both values is a
+            # plateau, not an identification (surfaced by the v2 rerun where
+            # strike_family kept both families)
+            identified = 0 < len(values) < CATEGORICAL_DIMS[dim]
             report.append(
                 {
                     "dim": dim,

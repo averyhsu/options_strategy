@@ -1,0 +1,30 @@
+[
+  {
+    "window": "SCRIPTED-VOL-EVENT-1",
+    "start": "2017-12-27",
+    "end": "2018-03-26",
+    "median_impact": -0.10226210813575531,
+    "worst_impact": -0.4879617955110148
+  },
+  {
+    "window": "SCRIPTED-CRASH",
+    "start": "2019-12-23",
+    "end": "2020-03-13",
+    "median_impact": 0.3322765349009851,
+    "worst_impact": 0.12404420352498202
+  },
+  {
+    "window": "SCRIPTED-BEAR-GRIND",
+    "start": "2021-10-13",
+    "end": "2023-04-19",
+    "median_impact": 0.05480827484852746,
+    "worst_impact": -0.46744276520482164
+  },
+  {
+    "window": "SCRIPTED-VIX-SPIKE",
+    "start": "2024-12-18",
+    "end": "2025-01-28",
+    "median_impact": 0.05924107723573613,
+    "worst_impact": 0.00966629239546557
+  }
+]

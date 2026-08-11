@@ -1,0 +1,29 @@
+{
+  "gate_pass": true,
+  "truth_idx": 145,
+  "n_candidates": 16384,
+  "n_hard_pass_dd_dates": 60,
+  "n_accepted": 60,
+  "eps": 5.36398952413186,
+  "dims_covered": {
+    "short_put_delta": true,
+    "short_call_delta": true,
+    "long_put_offset_days": true,
+    "long_call_offset_days": true,
+    "long_strike_offset": true,
+    "credit_threshold_frac": true,
+    "threshold_reference": true,
+    "require_credit": true,
+    "min_credit_frac": true,
+    "regime_action": true,
+    "ema_len": true,
+    "hysteresis": true,
+    "defense": true,
+    "risk_definition": true,
+    "risk_fraction": true,
+    "strike_family": true,
+    "coverage_q_put": true,
+    "coverage_q_call": true
+  },
+  "n_dims_identified": 2
+}

@@ -1,0 +1,384 @@
+{
+  "folds": [
+    {
+      "mode": "anchored",
+      "train_end": "2019-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0011997777550319527,
+      "oos_share_profitable": 0.36363636363636365
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2019-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0011997777550319527,
+      "oos_share_profitable": 0.36363636363636365
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2019-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0003808669116985199,
+      "oos_share_profitable": 0.42424242424242425
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2019-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0003169002659147394,
+      "oos_share_profitable": 0.42424242424242425
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2019-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0013932166875325945,
+      "oos_share_profitable": 0.5757575757575758
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2019-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0015833075347879949,
+      "oos_share_profitable": 0.6363636363636364
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2019-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.002747882842191457,
+      "oos_share_profitable": 0.5757575757575758
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2019-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.002479723752251332,
+      "oos_share_profitable": 0.5757575757575758
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2020-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0031181680881153103,
+      "oos_share_profitable": 0.6060606060606061
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2020-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0031302267175553566,
+      "oos_share_profitable": 0.6363636363636364
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2020-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0007870477771743018,
+      "oos_share_profitable": 0.45454545454545453
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2020-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0007062448238168291,
+      "oos_share_profitable": 0.42424242424242425
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2020-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.00033555420215101604,
+      "oos_share_profitable": 0.3333333333333333
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2020-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0005071763330459769,
+      "oos_share_profitable": 0.30303030303030304
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2020-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0009139887312864906,
+      "oos_share_profitable": 0.5151515151515151
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2020-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0005967937977463542,
+      "oos_share_profitable": 0.48484848484848486
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2021-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.002466201207192665,
+      "oos_share_profitable": 0.7878787878787878
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2021-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.002750069686503377,
+      "oos_share_profitable": 0.8181818181818182
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2021-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0008108921746025745,
+      "oos_share_profitable": 0.5454545454545454
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2021-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0013742732414278216,
+      "oos_share_profitable": 0.6060606060606061
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2021-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 9.873672132189132e-05,
+      "oos_share_profitable": 0.5151515151515151
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2021-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0003677067638035872,
+      "oos_share_profitable": 0.5454545454545454
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2021-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0018527090684523435,
+      "oos_share_profitable": 0.24242424242424243
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2021-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0019608390030636594,
+      "oos_share_profitable": 0.24242424242424243
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2022-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0014663454755170127,
+      "oos_share_profitable": 0.15151515151515152
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2022-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.001544565817122289,
+      "oos_share_profitable": 0.18181818181818182
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2022-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0006265621739099513,
+      "oos_share_profitable": 0.21212121212121213
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2022-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0007025305854162898,
+      "oos_share_profitable": 0.24242424242424243
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2022-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0020405200616316513,
+      "oos_share_profitable": 0.6363636363636364
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2022-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.001772966794312188,
+      "oos_share_profitable": 0.6666666666666666
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2022-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0012218142452093714,
+      "oos_share_profitable": 0.48484848484848486
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2022-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0010152467130889768,
+      "oos_share_profitable": 0.6060606060606061
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2023-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0011987007678006787,
+      "oos_share_profitable": 0.18181818181818182
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2023-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0010693529411851363,
+      "oos_share_profitable": 0.24242424242424243
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2023-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -5.732575345027739e-05,
+      "oos_share_profitable": 0.3939393939393939
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2023-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -9.813238616407468e-05,
+      "oos_share_profitable": 0.42424242424242425
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2023-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.00031433714477397426,
+      "oos_share_profitable": 0.45454545454545453
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2023-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 4.079609315934525e-05,
+      "oos_share_profitable": 0.3333333333333333
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2023-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.00037374387823357826,
+      "oos_share_profitable": 0.30303030303030304
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2023-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0003224894214008936,
+      "oos_share_profitable": 0.2727272727272727
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2024-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0008055035080291733,
+      "oos_share_profitable": 0.15151515151515152
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2024-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0006559115338708681,
+      "oos_share_profitable": 0.18181818181818182
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2024-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.0005444416085324429,
+      "oos_share_profitable": 0.09090909090909091
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2024-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -0.00037983868536736244,
+      "oos_share_profitable": 0.18181818181818182
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2024-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.00018979046690631004,
+      "oos_share_profitable": 0.24242424242424243
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2024-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": -1.2911171807526006e-05,
+      "oos_share_profitable": 0.21212121212121213
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2024-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.002614962225346778,
+      "oos_share_profitable": 0.6060606060606061
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2024-10-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0006613938156662805,
+      "oos_share_profitable": 0.30303030303030304
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2025-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.003086770922178132,
+      "oos_share_profitable": 0.5757575757575758
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2025-01-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0014183078497671938,
+      "oos_share_profitable": 0.3939393939393939
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2025-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0015037899039895266,
+      "oos_share_profitable": 0.3939393939393939
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2025-04-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 0.0012378375861578682,
+      "oos_share_profitable": 0.36363636363636365
+    },
+    {
+      "mode": "anchored",
+      "train_end": "2025-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 3.8799824249235365e-05,
+      "oos_share_profitable": 0.2727272727272727
+    },
+    {
+      "mode": "rolling",
+      "train_end": "2025-07-04",
+      "n_selected": 33,
+      "oos_mean_daily_ret": 4.7707790846958575e-05,
+      "oos_share_profitable": 0.30303030303030304
+    }
+  ],
+  "n_folds": 54,
+  "median_oos_share_profitable": 0.3939393939393939
+}

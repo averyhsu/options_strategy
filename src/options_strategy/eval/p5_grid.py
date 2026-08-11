@@ -83,9 +83,7 @@ def select_configs(
         & credit_gate
     )
     pool = (
-        near_miss
-        if near_miss.height >= n
-        else df.filter((pl.col("n_cycles") >= 30) & credit_gate)
+        near_miss if near_miss.height >= n else df.filter((pl.col("n_cycles") >= 30) & credit_gate)
     )
     ranked = [
         {k: r[k] for k in DIM_NAMES}
