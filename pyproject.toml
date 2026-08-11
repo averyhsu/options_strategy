@@ -20,9 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# free daily-data fetch (candle study, PLAN §8.3); not needed by the engine
+# free daily-data fetch + candle-study figures (PLAN §8.3); not needed by the engine
 freedata = [
     "yfinance>=0.2.40",
+    "matplotlib>=3.8",
 ]
 dev = [
     "ruff>=0.4",
