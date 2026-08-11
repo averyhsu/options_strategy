@@ -1,0 +1,7 @@
+# P4 v2 coarse sweep (2026-08-10 amendment): 18-dim space with the
+# percentile-band strike family as the default arm (PLAN §8.1). SYNTHETIC
+# re-run for Pass-1 machinery validation — real data waits for Pass 2.
+n_configs: 16384
+seed: 20260810
+world: data/synthetic/worlds/p4-world-10y-synthetic
+out_dir: experiments/p4v2

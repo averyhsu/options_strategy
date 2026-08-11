@@ -379,7 +379,12 @@ def qa_chunk(
         if acc["parity_rows"]
         else pl.DataFrame(schema=_FORWARDS_SCHEMA)
     ).write_parquet(cdir / f"forwards_{chunk_idx:04d}.parquet")
-    pl.DataFrame(acc["coverage_rows"]).write_parquet(cdir / f"coverage_{chunk_idx:04d}.parquet")
+    # expected_bars is None on EOD-only sessions: pin the dtype so an all-EOD
+    # chunk (Null column) still vstacks against intraday chunks (Int64)
+    pl.DataFrame(
+        acc["coverage_rows"],
+        schema_overrides={"expected_bars": pl.Int64, "missing_bars": pl.Int64},
+    ).write_parquet(cdir / f"coverage_{chunk_idx:04d}.parquet")
     marker.write_text(
         json.dumps(
             {
@@ -506,7 +511,12 @@ def qa_finalize(world_root: Path | str, cfg: QAConfig | None = None) -> QAResult
         [pl.read_parquet(p) for p in sorted(cdir.glob("forwards_*.parquet"))]
     ).sort(["ts", "expiry_date", "root"])
     coverage_df = pl.concat(
-        [pl.read_parquet(p) for p in sorted(cdir.glob("coverage_*.parquet"))],
+        [
+            pl.read_parquet(p).with_columns(
+                pl.col("expected_bars").cast(pl.Int64), pl.col("missing_bars").cast(pl.Int64)
+            )
+            for p in sorted(cdir.glob("coverage_*.parquet"))
+        ],
         how="diagonal",
     ).sort("session")
 

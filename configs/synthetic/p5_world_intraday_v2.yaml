@@ -1,0 +1,43 @@
+# P5 v2 intraday world — SYNTHETIC (2026-08-10 amendment rerun).
+# Identical scripted structure to p5_world_intraday (nine Friday->Friday
+# intraday windows incl. the -5% weekend gap and the midweek crash), plus
+# ~2 years of EOD-only pre-history so the §8.1 percentile-band family
+# (21-week EMA + 52 above-EMA observations) can actually trade the windows.
+name: p5-world-intraday-v2-synthetic
+seed: 20250606
+start: 2023-06-05
+end: 2025-10-31
+s0: 4300.0
+
+chain:
+  n_weeklies: 40
+  n_monthlies: 1
+  near_band_pct: 0.025
+  span_pct: 0.08
+
+snapshots:
+  eod: true
+  intraday_step_bars: 5
+  intraday_windows:
+    - [2025-06-06, 2025-06-13] # calm
+    - [2025-06-20, 2025-06-27] # calm
+    - [2025-07-11, 2025-07-18] # trend
+    - [2025-08-01, 2025-08-08] # chop
+    - [2025-08-15, 2025-08-22] # WEEKEND GAP week (forced Monday 08-18)
+    - [2025-08-29, 2025-09-05] # post-gap
+    - [2025-09-12, 2025-09-19] # midweek crash (forced Wednesday 09-17)
+    - [2025-10-03, 2025-10-10] # recovery
+    - [2025-10-17, 2025-10-24] # calm
+
+segments:
+  # 2y band warm-up drift, then the original scripted regime sequence timed
+  # so the intraday windows land in the same regimes as the v1 world
+  - { length_sessions: 505, mu_annual: 0.10 }
+  - { length_sessions: 45, mu_annual: 0.12 }
+  - { length_sessions: 30, mu_annual: 0.00, theta_mult: 1.5 }
+  - { length_sessions: 25, mu_annual: -0.10, theta_mult: 2.0 }
+  - { length_sessions: 10000, mu_annual: 0.10 }
+
+forced_events:
+  - { session: 2025-08-18, gap_pct: -0.05, vol_mult: 3.0 }
+  - { session: 2025-09-17, gap_pct: -0.035, vol_mult: 2.5 }
