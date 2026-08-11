@@ -48,6 +48,7 @@ CATEGORICAL_DIMS = {
     "defense",
     "risk_definition",
     "risk_fraction",
+    "strike_family",
 }
 
 
@@ -216,6 +217,8 @@ def _dim_coverage(accepted: list[dict], truth: dict) -> tuple[list[dict], dict[s
                 "long_strike_offset": 100,
                 "credit_threshold_frac": 0.40,
                 "min_credit_frac": 0.20,
+                "coverage_q_put": 0.15,
+                "coverage_q_call": 0.15,
             }[dim]
             identified = bool(len(arr) and (hi - lo) < 0.5 * prior_span)
             report.append(

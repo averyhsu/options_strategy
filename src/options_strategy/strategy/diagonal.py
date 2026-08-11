@@ -17,6 +17,7 @@ from options_strategy.engine.margin import LegState
 from options_strategy.engine.marketview import MarketView
 from options_strategy.pricing.greeks import greeks
 from options_strategy.pricing.iv import implied_vol
+from options_strategy.strategy.bands import above_ema_next_returns, band_edges
 
 
 class ExplicitLegs(BaseModel):
@@ -31,8 +32,21 @@ class ExplicitLegs(BaseModel):
     long_call: float
 
 
+STRIKE_FAMILIES = ("percentile", "delta")
+
+
 class StructureConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # DEFAULT family (PLAN §8.1, 2026-08-10 amendment): short strikes at
+    # spot x (1 + edge) where edges are quantiles of the trailing above-EMA
+    # weekly-return distribution — the only rule the author's candles-only
+    # backtest could have produced. "delta" is the fallback family.
+    strike_family: str = "percentile"
+    coverage_q_put: float = 0.90  # one-sided coverage, prior 0.80..0.95
+    coverage_q_call: float = 0.90
+    band_ema_len: int = 21  # sweep ties this to the regime ema_len dim
+    min_band_obs: int = 52  # skip entry until this many above-EMA weeks exist
 
     short_put_delta: float = 0.20  # abs undiscounted forward delta target
     short_call_delta: float = 0.15
@@ -47,6 +61,10 @@ class StructureConfig(BaseModel):
     require_credit: bool = True
     min_credit_frac: float = 0.10  # net credit >= frac * reference width
     explicit: ExplicitLegs | None = None
+
+    def model_post_init(self, __context) -> None:
+        if self.strike_family not in STRIKE_FAMILIES:
+            raise ValueError(f"strike_family {self.strike_family!r} not in {STRIKE_FAMILIES}")
 
 
 @dataclass(frozen=True)
@@ -160,8 +178,16 @@ def build_diagonal(view: MarketView, cfg: StructureConfig) -> DiagonalPlan | Non
         if expiries is None:
             return None
         front, back_put, back_call = expiries
-        sp = _strike_by_delta(view, front, "P", cfg.short_put_delta)
-        sc = _strike_by_delta(view, front, "C", cfg.short_call_delta)
+        if cfg.strike_family == "percentile":
+            arr = above_ema_next_returns(view.daily_history(), cfg.band_ema_len)
+            edges = band_edges(arr, cfg.coverage_q_put, cfg.coverage_q_call, cfg.min_band_obs)
+            if edges is None:
+                return None
+            sp = _nearest_listed(view, front, "P", view.spot * (1.0 + edges[0]))
+            sc = _nearest_listed(view, front, "C", view.spot * (1.0 + edges[1]))
+        else:
+            sp = _strike_by_delta(view, front, "P", cfg.short_put_delta)
+            sc = _strike_by_delta(view, front, "C", cfg.short_call_delta)
         if sp is None or sc is None or sp >= sc:
             return None
         lp = _nearest_listed(view, back_put, "P", sp - cfg.long_strike_offset)

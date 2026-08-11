@@ -21,12 +21,18 @@ def test_sobol_deterministic_and_in_bounds() -> None:
         assert 0.20 <= p["credit_threshold_frac"] <= 0.60
         assert p["risk_fraction"] in (0.10, 0.15, 0.20)
         assert p["ema_len"] in (13, 21, 34)
+        assert p["strike_family"] in ("percentile", "delta")
+        assert 0.80 <= p["coverage_q_put"] <= 0.95
+        assert 0.80 <= p["coverage_q_call"] <= 0.95
 
 
 def test_every_param_maps_to_valid_weekly_config() -> None:
     for p in sobol_params(32, seed=11):
         cfg = weekly_config(p)
         assert cfg.entry.execution == "eod_mid"
+        assert cfg.structure.strike_family == p["strike_family"]
+        assert cfg.structure.band_ema_len == p["ema_len"]
+        assert cfg.structure.coverage_q_put == p["coverage_q_put"]
         if p["defense"] == "none":
             assert cfg.defense.trigger == "none"
         else:

@@ -143,6 +143,7 @@ def test_hand_specified_week_reproduces_hand_calculated_pnl(adapter) -> None:
 def _delta_cfg(execution: str = "eod_mid") -> WeeklyConfig:
     return WeeklyConfig(
         structure=StructureConfig(
+            strike_family="delta",
             short_put_delta=0.25,
             short_call_delta=0.20,
             long_put_expiry_offset_days=3,

@@ -19,6 +19,7 @@ import polars as pl
 from options_strategy.data.adapters import SyntheticWorldAdapter
 from options_strategy.pricing.greeks import greeks
 from options_strategy.pricing.iv import implied_vol
+from options_strategy.strategy.bands import above_ema_next_returns
 from options_strategy.strategy.regime import RegimeConfig, regime_frame
 
 _KEY = ["ts", "root", "expiry_date", "strike", "cp"]
@@ -52,6 +53,9 @@ class WorldCache:
     regime_allow: dict[tuple[int, float], dict[dt.date, tuple[str, str]]] = field(
         default_factory=dict
     )  # (ema_len, h) -> session -> (state, event)
+    band_returns: dict[int, dict[dt.date, np.ndarray]] = field(
+        default_factory=dict
+    )  # ema_len -> entry session -> trailing above-EMA next-week returns
 
 
 def build_cache(
@@ -183,4 +187,15 @@ def build_cache(
                 row = completed.row(completed.height - 1, named=True)
                 table[session] = (row["state"], row["event"])
         cache.regime_allow[(ema_len, h)] = table
+
+    # percentile-band inputs (PLAN §8.1 default family): same strictly-before-
+    # today prefix as the regime tables, via the SAME pure function the slow
+    # paths call — the equivalence tests depend on bit-identical edges.
+    for ema_len in sorted({e for e, _ in ema_hyst_combos}):
+        band_table: dict[dt.date, np.ndarray] = {}
+        for i, session in enumerate(session_list):
+            if not entry_flags[i]:
+                continue
+            band_table[session] = above_ema_next_returns(daily_ohlc[:i], ema_len)
+        cache.band_returns[ema_len] = band_table
     return cache

@@ -1,6 +1,12 @@
-"""Sweep space over PLAN §8 priors: Sobol points in [0,1)^15 mapped to
+"""Sweep space over PLAN §8 priors: Sobol points in [0,1)^18 mapped to
 WeeklyConfig instances (Track-A form: eod_mid execution, defense collapsed to
 {none, close-side-EOD} per §9.1).
+
+2026-08-10 amendment: `strike_family` is a dimension — "percentile" (the
+DEFAULT family: short strikes at trailing above-EMA return quantiles, coverage
+q_put/q_call in [0.80, 0.95]) vs "delta" (fallback). Delta dims are inert
+under the percentile family and vice versa; those marginals are expected
+plateaus and the ABC gate treats them as such.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ HYSTERESIS = (0.0, 0.25, 0.5)
 DEFENSES = ("none", "close_side_eod")
 RISK_DEFS = ("scenario", "width", "margin")
 RISK_FRACS = (0.10, 0.15, 0.20)
+STRIKE_FAMILIES = ("percentile", "delta")
 
 DIM_NAMES = [
     "short_put_delta",
@@ -39,6 +46,9 @@ DIM_NAMES = [
     "defense",
     "risk_definition",
     "risk_fraction",
+    "strike_family",
+    "coverage_q_put",
+    "coverage_q_call",
 ]
 
 
@@ -74,6 +84,9 @@ def params_from_unit(u: np.ndarray) -> dict:
         "defense": _choice(u[12], DEFENSES),
         "risk_definition": _choice(u[13], RISK_DEFS),
         "risk_fraction": _choice(u[14], RISK_FRACS),
+        "strike_family": _choice(u[15], STRIKE_FAMILIES),
+        "coverage_q_put": 0.80 + u[16] * 0.15,
+        "coverage_q_call": 0.80 + u[17] * 0.15,
     }
 
 
@@ -85,6 +98,10 @@ def weekly_config(params: dict) -> WeeklyConfig:
     )
     return WeeklyConfig(
         structure=StructureConfig(
+            strike_family=params["strike_family"],
+            coverage_q_put=params["coverage_q_put"],
+            coverage_q_call=params["coverage_q_call"],
+            band_ema_len=params["ema_len"],
             short_put_delta=params["short_put_delta"],
             short_call_delta=params["short_call_delta"],
             long_put_expiry_offset_days=params["long_put_offset_days"],

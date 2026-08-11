@@ -42,6 +42,7 @@ def cache_and_adapter(clean_world, clean_world_qa):
 def _trading_cfg() -> WeeklyConfig:
     return WeeklyConfig(
         structure=StructureConfig(
+            strike_family="delta",
             short_put_delta=0.25,
             short_call_delta=0.20,
             long_put_expiry_offset_days=3,
@@ -73,6 +74,68 @@ def test_fast_runner_matches_track_a_on_trading_config(cache_and_adapter) -> Non
     cache, adapter = cache_and_adapter
     n_fills, _ = _compare(cache, adapter, _trading_cfg())
     assert n_fills >= 2, "config must actually trade for this test to bite"
+
+
+@pytest.fixture(scope="module")
+def band_world_adapter(tmp_path_factory) -> SyntheticWorldAdapter:
+    """~24-week EOD-only world: long enough for a real trailing band history
+    (the 3-week tiny world can never complete a weekly EMA)."""
+    import datetime as dt
+
+    from options_strategy.data.qa import run_qa
+    from options_strategy.data.synthetic.config import (
+        ChainParams,
+        SnapshotSpec,
+        SyntheticWorldConfig,
+    )
+    from options_strategy.data.synthetic.world import generate_world
+
+    root = tmp_path_factory.mktemp("bandworld")
+    cfg = SyntheticWorldConfig(
+        name="band-eod-synthetic",
+        seed=17,
+        start=dt.date(2025, 10, 6),
+        end=dt.date(2026, 3, 20),
+        chain=ChainParams(n_weeklies=8, n_monthlies=1, near_band_pct=0.02, span_pct=0.05),
+        snapshots=SnapshotSpec(eod=True),
+    )
+    paths, _ = generate_world(cfg, root)
+    assert run_qa(paths.root).clean
+    return SyntheticWorldAdapter(paths.root)
+
+
+def test_fast_runner_matches_track_a_on_percentile_family(band_world_adapter) -> None:
+    """The §8.1 DEFAULT family must trade AND match Track A bit-for-bit.
+
+    24 weeks is still too short for the production 21-week EMA + 52-obs
+    warm-up, so the band parameters are scaled down (band_ema_len=4,
+    min_band_obs=4) — this exercises the identical code path, not a relaxed
+    tolerance."""
+    from options_strategy.strategy.regime import RegimeConfig
+
+    adapter = band_world_adapter
+    cache = build_cache(adapter, [(4, 0.0)])
+    cfg = WeeklyConfig(
+        structure=StructureConfig(
+            strike_family="percentile",
+            coverage_q_put=0.85,
+            coverage_q_call=0.85,
+            band_ema_len=4,
+            min_band_obs=4,
+            long_put_expiry_offset_days=3,
+            long_call_expiry_offset_days=3,
+            long_strike_offset=25.0,
+            min_credit_frac=0.0,
+            require_credit=False,
+        ),
+        entry=EntryConfig(execution="eod_mid", credit_threshold_frac=0.05),
+        sizing=SizingConfig(risk_fraction=0.15),
+        defense=DefenseConfig(trigger="none"),
+        regime=RegimeConfig(ema_len=4),
+        regime_action="trade_all",
+    )
+    n_fills, _ = _compare(cache, adapter, cfg)
+    assert n_fills >= 2, "percentile-family config must actually trade for this test to bite"
 
 
 def test_fast_runner_matches_track_a_on_sobol_configs(cache_and_adapter) -> None:

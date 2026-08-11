@@ -17,6 +17,7 @@ from options_strategy.engine import CONTRACT_MULTIPLIER
 from options_strategy.engine.instruments import OptionKey
 from options_strategy.engine.margin import LegState, ScenarioGrid, contracts_for_risk
 from options_strategy.pricing import black76
+from options_strategy.strategy.bands import band_edges
 from options_strategy.strategy.weekly import WeeklyConfig
 from options_strategy.sweep.precompute import SessionData, Side, WorldCache
 
@@ -207,6 +208,11 @@ def run_config(
     open_cycles: list[dict] = []
     nav_daily = np.empty(len(cache.sessions))
     regime_table = cache.regime_allow[(cfg.regime.ema_len, cfg.regime.hysteresis_atr)]
+    band_table = (
+        cache.band_returns.get(cfg.structure.band_ema_len, {})
+        if cfg.structure.strike_family == "percentile"
+        else {}
+    )
 
     def close_side(sd: SessionData, cy: dict, side_name: str) -> None:
         nonlocal cash, fees_paid, n_fills
@@ -266,7 +272,7 @@ def run_config(
                 }[cfg.regime_action]
             )
             if allowed:
-                plan = _build_plan(sd, cfg)
+                plan = _build_plan(sd, cfg, band_table.get(session))
                 if plan is not None:
                     legs, leg_states, mid_credit, width = plan
                     if mid_credit > 0 or not cfg.structure.require_credit:
@@ -341,14 +347,26 @@ def run_config(
     )
 
 
-def _build_plan(sd: SessionData, cfg: WeeklyConfig):
+def _build_plan(sd: SessionData, cfg: WeeklyConfig, band_arr: np.ndarray | None = None):
     s = cfg.structure
     exp = _pick_expiries(sd, cfg)
     if exp is None:
         return None
     front, back_put, back_call = exp
-    sp = _strike_by_delta(sd, front, "P", s.short_put_delta)
-    sc = _strike_by_delta(sd, front, "C", s.short_call_delta)
+    if s.strike_family == "percentile":
+        edges = band_edges(
+            band_arr if band_arr is not None else np.empty(0),
+            s.coverage_q_put,
+            s.coverage_q_call,
+            s.min_band_obs,
+        )
+        if edges is None:
+            return None
+        sp = _nearest_listed(sd, front, "P", sd.close * (1.0 + edges[0]))
+        sc = _nearest_listed(sd, front, "C", sd.close * (1.0 + edges[1]))
+    else:
+        sp = _strike_by_delta(sd, front, "P", s.short_put_delta)
+        sc = _strike_by_delta(sd, front, "C", s.short_call_delta)
     if sp is None or sc is None or sp >= sc:
         return None
     lp = _nearest_listed(sd, back_put, "P", sp - s.long_strike_offset)
