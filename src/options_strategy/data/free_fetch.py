@@ -44,9 +44,7 @@ def _http_csv(url: str) -> pl.DataFrame:
 def fetch_gspc(out_dir: Path) -> dict:
     import yfinance as yf
 
-    df = yf.download(
-        "^GSPC", start=GSPC_START, auto_adjust=False, progress=False, interval="1d"
-    )
+    df = yf.download("^GSPC", start=GSPC_START, auto_adjust=False, progress=False, interval="1d")
     if df is None or len(df) == 0:
         raise RuntimeError("yfinance returned no ^GSPC rows")
     df = df.reset_index()

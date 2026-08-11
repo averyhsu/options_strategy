@@ -189,7 +189,7 @@ def touch_calendar(above: pl.DataFrame, q_list: list[float]) -> pl.DataFrame:
         put_edge = float(np.quantile(rets, 1.0 - q))
         call_edge = float(np.quantile(rets, q))
         out = out.with_columns(
-            ((pl.col("next_low_ret") <= put_edge)).alias(f"touch_put_q{int(q * 100)}"),
+            (pl.col("next_low_ret") <= put_edge).alias(f"touch_put_q{int(q * 100)}"),
             (pl.col("next_high_ret") >= call_edge).alias(f"touch_call_q{int(q * 100)}"),
         )
     agg = [pl.len().alias("n_entry_weeks")]
@@ -275,10 +275,7 @@ def run_candle_study(
 
     # (c) inverse solve per q
     inv = pl.DataFrame(
-        [
-            {"q": r["q"], **inverse_solve(r["p_inside_close"])}
-            for r in cov.iter_rows(named=True)
-        ]
+        [{"q": r["q"], **inverse_solve(r["p_inside_close"])} for r in cov.iter_rows(named=True)]
     )
     # which q maps into his claimed WR band (close-outside = loss definition)
     wr_q = [
@@ -369,8 +366,7 @@ def _report_md(res: dict, spot: float) -> str:
     ]
     for s in res["sources"]:
         lines.append(
-            f"- {s['name']}: `{s['source']}` "
-            f"({s['rows']} rows, {s['date_min']} → {s['date_max']})"
+            f"- {s['name']}: `{s['source']}` ({s['rows']} rows, {s['date_min']} → {s['date_max']})"
         )
     lines += [
         "",
@@ -449,10 +445,13 @@ def _report_md(res: dict, spot: float) -> str:
         "",
         f"- q whose close-based win rate lands in his claimed WR band "
         f"[{CLAIM_WR_LO:.0%}, {CLAIM_WR_HI:.0%}]: "
-        + (", ".join(f"{q:.2f}" for q in wr_q) if wr_q else
-           "**none in the [0.80, 0.95] grid** — his claimed WR requires q > 0.92 "
-           "(two-sided close-based wins ~ 2q-1), or losses defined by touch+defense "
-           "rather than close-outside"),
+        + (
+            ", ".join(f"{q:.2f}" for q in wr_q)
+            if wr_q
+            else "**none in the [0.80, 0.95] grid** — his claimed WR requires q > 0.92 "
+            "(two-sided close-based wins ~ 2q-1), or losses defined by touch+defense "
+            "rather than close-outside"
+        ),
         "- **Plausibility:** a win of +30% of R means the credit ≈ 30% of risk, matching",
         "  his own quoted credit thresholds (30% typical). The table shows what the",
         "  DEFENSE must accomplish: cut the average realized loss from the undefended",
@@ -460,7 +459,7 @@ def _report_md(res: dict, spot: float) -> str:
         "  actually offered ~30%-of-risk credits at these strike distances is exactly",
         "  what Pass 2 options data verifies — candles cannot.",
         "",
-        "## (d) \"3 consecutive bad weeks happen below the EMA\" — verify/refute",
+        '## (d) "3 consecutive bad weeks happen below the EMA" — verify/refute',
         "",
         "- losing streaks of ≥3 consecutive negative weeks: "
         f"**{res['d_streaks']['n_streaks_ge3']}**",
