@@ -132,6 +132,85 @@ band edge (put / call), by coverage q:
 
 VIX context (q=0.90): median entry-week VIX close 19.0 when the next week touched an edge vs 14.5 when it did not — defense weeks cluster in elevated-vol tape.
 
+## Mini-purchase specification (real-chain credit check at the (b) band edges)
+
+A cheap, targeted options-data slice (e.g. a CBOE DataShop custom order)
+answering item (c)'s open question BEFORE or alongside the full Pass-2
+purchase: what credits did real chains actually pay at the band-edge
+strikes, across vol regimes? The ±4% strike window covers every (b)-table
+edge (max ~2.8%) plus long wings, with margin for the ^GSPC-proxy-vs-SPX
+level difference. The Pass-1 v2 sweep found band strikes NEVER price as
+credits on the synthetic surface (0/4096) — this slice is the real-world
+test of that finding.
+
+**Per sample date, request:** SPX + SPXW quotes (NBBO bid/ask + sizes),
+EOD snapshot minimum (15:45-16:00 ET; a 10:00 ET snapshot is a cheap
+bonus), ALL listed expiries with DTE ≤ 63 calendar days (front Friday +
+every §8.1 back-leg offset), strikes within the table's range. Entry
+dates are the last trading day of each ISO week; expiry dates around
+holidays follow the CBOE shift convention — include the true listed
+expiry dates, not the approximations below.
+
+| window | entry Friday | spot (proxy close) | EMA state | strikes | front expiry ~ | back expiries thru |
+|---|---|---|---|---|---|---|
+| calm-2017 | 2017-01-06 | 2,277 | bull | 2185-2370 | 2017-01-13 | 2017-03-10 |
+| calm-2017 | 2017-03-03 | 2,383 | bull | 2285-2480 | 2017-03-10 | 2017-05-05 |
+| calm-2017 | 2017-05-05 | 2,399 | bull | 2300-2500 | 2017-05-12 | 2017-07-07 |
+| calm-2017 | 2017-07-07 | 2,425 | bull | 2325-2525 | 2017-07-14 | 2017-09-08 |
+| calm-2017 | 2017-09-01 | 2,477 | bull | 2375-2580 | 2017-09-08 | 2017-11-03 |
+| calm-2017 | 2017-11-03 | 2,588 | bull | 2480-2695 | 2017-11-10 | 2018-01-05 |
+| volmageddon-feb-2018 | 2018-01-26 | 2,873 | bull | 2755-2990 | 2018-02-02 | 2018-03-30 |
+| volmageddon-feb-2018 | 2018-02-02 | 2,762 | bull | 2650-2875 | 2018-02-09 | 2018-04-06 |
+| volmageddon-feb-2018 | 2018-02-09 | 2,620 | bear | 2510-2725 | 2018-02-16 | 2018-04-13 |
+| volmageddon-feb-2018 | 2018-02-16 | 2,732 | bull | 2620-2845 | 2018-02-23 | 2018-04-20 |
+| volmageddon-feb-2018 | 2018-02-23 | 2,747 | bull | 2635-2860 | 2018-03-02 | 2018-04-27 |
+| covid-mar-2020 | 2020-02-21 | 3,338 | bull | 3200-3475 | 2020-02-28 | 2020-04-24 |
+| covid-mar-2020 | 2020-02-28 | 2,954 | bear | 2835-3075 | 2020-03-06 | 2020-05-01 |
+| covid-mar-2020 | 2020-03-06 | 2,972 | bear | 2850-3095 | 2020-03-13 | 2020-05-08 |
+| covid-mar-2020 | 2020-03-13 | 2,711 | bear | 2600-2820 | 2020-03-20 | 2020-05-15 |
+| covid-mar-2020 | 2020-03-20 | 2,305 | bear | 2210-2400 | 2020-03-27 | 2020-05-22 |
+| covid-mar-2020 | 2020-03-27 | 2,541 | bear | 2435-2645 | 2020-04-03 | 2020-05-29 |
+| covid-mar-2020 | 2020-04-03 | 2,489 | bear | 2385-2590 | 2020-04-09 | 2020-06-04 |
+| bear-2022 | 2022-01-07 | 4,677 | bull | 4485-4865 | 2022-01-14 | 2022-03-11 |
+| bear-2022 | 2022-02-04 | 4,501 | bear | 4320-4685 | 2022-02-11 | 2022-04-08 |
+| bear-2022 | 2022-03-04 | 4,329 | bear | 4155-4505 | 2022-03-11 | 2022-05-06 |
+| bear-2022 | 2022-04-01 | 4,546 | bull | 4360-4730 | 2022-04-08 | 2022-06-03 |
+| bear-2022 | 2022-05-06 | 4,123 | bear | 3955-4290 | 2022-05-13 | 2022-07-08 |
+| bear-2022 | 2022-06-03 | 4,109 | bear | 3940-4275 | 2022-06-10 | 2022-08-05 |
+| bear-2022 | 2022-07-01 | 3,825 | bear | 3670-3980 | 2022-07-08 | 2022-09-02 |
+| bear-2022 | 2022-08-05 | 4,145 | bull | 3975-4315 | 2022-08-12 | 2022-10-07 |
+| bear-2022 | 2022-09-02 | 3,924 | bear | 3765-4085 | 2022-09-09 | 2022-11-04 |
+| bear-2022 | 2022-10-07 | 3,640 | bear | 3490-3790 | 2022-10-14 | 2022-12-09 |
+| vix-spike-aug-2024 | 2024-07-26 | 5,459 | bull | 5240-5680 | 2024-08-02 | 2024-09-27 |
+| vix-spike-aug-2024 | 2024-08-02 | 5,347 | bull | 5130-5565 | 2024-08-09 | 2024-10-04 |
+| vix-spike-aug-2024 | 2024-08-09 | 5,344 | bull | 5130-5560 | 2024-08-16 | 2024-10-11 |
+| vix-spike-aug-2024 | 2024-08-16 | 5,554 | bull | 5330-5780 | 2024-08-23 | 2024-10-18 |
+| vix-spike-aug-2024 | 2024-08-23 | 5,635 | bull | 5405-5860 | 2024-08-30 | 2024-10-25 |
+| live-window-2026 | 2026-04-02 | 6,583 | bear | 6315-6850 | 2026-04-10 | 2026-06-05 |
+| live-window-2026 | 2026-04-10 | 6,817 | bull | 6540-7090 | 2026-04-17 | 2026-06-12 |
+| live-window-2026 | 2026-04-17 | 7,126 | bull | 6840-7415 | 2026-04-24 | 2026-06-19 |
+| live-window-2026 | 2026-04-24 | 7,165 | bull | 6875-7455 | 2026-05-01 | 2026-06-26 |
+| live-window-2026 | 2026-05-01 | 7,230 | bull | 6940-7520 | 2026-05-08 | 2026-07-03 |
+| live-window-2026 | 2026-05-08 | 7,399 | bull | 7100-7695 | 2026-05-15 | 2026-07-10 |
+| live-window-2026 | 2026-05-15 | 7,408 | bull | 7110-7705 | 2026-05-22 | 2026-07-17 |
+| live-window-2026 | 2026-05-22 | 7,473 | bull | 7170-7775 | 2026-05-29 | 2026-07-24 |
+| live-window-2026 | 2026-05-29 | 7,580 | bull | 7275-7885 | 2026-06-05 | 2026-07-31 |
+| live-window-2026 | 2026-06-05 | 7,384 | bull | 7085-7680 | 2026-06-12 | 2026-08-07 |
+| live-window-2026 | 2026-06-12 | 7,431 | bull | 7130-7730 | 2026-06-18 | 2026-08-13 |
+| live-window-2026 | 2026-06-18 | 7,501 | bull | 7200-7805 | 2026-06-26 | 2026-08-21 |
+| live-window-2026 | 2026-06-26 | 7,354 | bull | 7055-7650 | 2026-07-02 | 2026-08-27 |
+| live-window-2026 | 2026-07-02 | 7,483 | bull | 7180-7785 | 2026-07-10 | 2026-09-04 |
+| live-window-2026 | 2026-07-10 | 7,575 | bull | 7270-7880 | 2026-07-17 | 2026-09-11 |
+| live-window-2026 | 2026-07-17 | 7,458 | bull | 7155-7760 | 2026-07-24 | 2026-09-18 |
+| live-window-2026 | 2026-07-24 | 7,412 | bull | 7115-7710 | 2026-07-31 | 2026-09-25 |
+| live-window-2026 | 2026-07-31 | 7,490 | bull | 7190-7790 | 2026-08-07 | 2026-10-02 |
+
+51 sample dates total (~a few thousand quote rows each at 5-pt strike
+spacing; the whole slice is well under a million rows). The 2026 live
+window rows are also part of the full Pass-2 fingerprint purchase — if
+the full purchase happens first, this slice is redundant for that window.
+
+
 ---
 
 **Reminder:** this replicates the author's candle methodology. It validates or

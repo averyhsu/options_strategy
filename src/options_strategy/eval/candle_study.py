@@ -22,6 +22,7 @@ intraweek extremes — exactly the quantity his stated backtest estimated.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -199,6 +200,106 @@ def touch_calendar(above: pl.DataFrame, q_list: list[float]) -> pl.DataFrame:
     return out.group_by("year").agg(agg).sort("year")
 
 
+# Mini-purchase spec (2026-08-14): regime-stratified sample Fridays for a
+# cheap targeted options-data slice verifying item (c)'s open question —
+# do real chains pay ~30%-of-risk credits at the (b)-table band edges?
+# Windows: (name, start, end, rule) — "all" takes every week-end in range,
+# "first_of_month" takes the first week-end of each listed month.
+SPEC_WINDOWS: list[tuple[str, str, str, list[int] | None]] = [
+    ("calm-2017", "2017-01-01", "2017-12-31", [1, 3, 5, 7, 9, 11]),
+    ("volmageddon-feb-2018", "2018-01-26", "2018-02-28", None),
+    ("covid-mar-2020", "2020-02-21", "2020-04-03", None),
+    ("bear-2022", "2022-01-01", "2022-10-31", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+    ("vix-spike-aug-2024", "2024-07-26", "2024-08-23", None),
+    ("live-window-2026", "2026-04-01", "2026-07-31", None),
+]
+SPEC_STRIKE_PAD = 0.04  # ±4% of spot: covers every (b) band edge (max ~2.8%) + wings
+SPEC_BACK_DTE_MAX = 63  # front Friday + §8.1 long-leg offsets (+7..+56d) fit in 63d
+
+
+def purchase_spec_rows(wk: pl.DataFrame) -> list[dict]:
+    """Sample entry Fridays x strike ranges for the credit-check slice.
+
+    wk: the weekly regime frame (week_end, close, state). week_end is the last
+    trading day of each ISO week — the entry session. The front expiry is
+    approximated by the NEXT week_end (the vendor slice should include the
+    true holiday-shifted SPX/SPXW expiry dates around it).
+    """
+    rows = []
+    week_ends = wk["week_end"].to_list()
+    for name, start, end, months in SPEC_WINDOWS:
+        lo = dt.date.fromisoformat(start)
+        hi = dt.date.fromisoformat(end)
+        seen_months: set[tuple[int, int]] = set()
+        for i, we in enumerate(week_ends):
+            if not (lo <= we <= hi):
+                continue
+            if months is not None:
+                key = (we.year, we.month)
+                if we.month not in months or key in seen_months:
+                    continue
+                seen_months.add(key)
+            r = wk.row(i, named=True)
+            spot = float(r["close"])
+            front = week_ends[i + 1] if i + 1 < len(week_ends) else we + dt.timedelta(days=7)
+            rows.append(
+                {
+                    "window": name,
+                    "entry_friday": we,
+                    "spot_close": spot,
+                    "ema_state": r["state"],
+                    "strike_lo": int(np.floor(spot * (1 - SPEC_STRIKE_PAD) / 5.0) * 5),
+                    "strike_hi": int(np.ceil(spot * (1 + SPEC_STRIKE_PAD) / 5.0) * 5),
+                    "front_expiry": front,
+                    "back_expiry_max": front + dt.timedelta(days=SPEC_BACK_DTE_MAX - 7),
+                }
+            )
+    return rows
+
+
+def _purchase_spec_md(rows: list[dict]) -> list[str]:
+    lines = [
+        "## Mini-purchase specification (real-chain credit check at the (b) band edges)",
+        "",
+        "A cheap, targeted options-data slice (e.g. a CBOE DataShop custom order)",
+        "answering item (c)'s open question BEFORE or alongside the full Pass-2",
+        "purchase: what credits did real chains actually pay at the band-edge",
+        "strikes, across vol regimes? The ±4% strike window covers every (b)-table",
+        "edge (max ~2.8%) plus long wings, with margin for the ^GSPC-proxy-vs-SPX",
+        "level difference. The Pass-1 v2 sweep found band strikes NEVER price as",
+        "credits on the synthetic surface (0/4096) — this slice is the real-world",
+        "test of that finding.",
+        "",
+        "**Per sample date, request:** SPX + SPXW quotes (NBBO bid/ask + sizes),",
+        "EOD snapshot minimum (15:45-16:00 ET; a 10:00 ET snapshot is a cheap",
+        "bonus), ALL listed expiries with DTE ≤ 63 calendar days (front Friday +",
+        "every §8.1 back-leg offset), strikes within the table's range. Entry",
+        "dates are the last trading day of each ISO week; expiry dates around",
+        "holidays follow the CBOE shift convention — include the true listed",
+        "expiry dates, not the approximations below.",
+        "",
+        "| window | entry Friday | spot (proxy close) | EMA state | strikes "
+        "| front expiry ~ | back expiries thru |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for r in rows:
+        lines.append(
+            f"| {r['window']} | {r['entry_friday']} | {r['spot_close']:,.0f} "
+            f"| {r['ema_state']} | {r['strike_lo']}-{r['strike_hi']} "
+            f"| {r['front_expiry']} | {r['back_expiry_max']} |"
+        )
+    n = len(rows)
+    lines += [
+        "",
+        f"{n} sample dates total (~a few thousand quote rows each at 5-pt strike",
+        "spacing; the whole slice is well under a million rows). The 2026 live",
+        "window rows are also part of the full Pass-2 fingerprint purchase — if",
+        "the full purchase happens first, this slice is redundant for that window.",
+        "",
+    ]
+    return lines
+
+
 def _figures(
     above: pl.DataFrame, below: pl.DataFrame, cov: pl.DataFrame, fig_dir: Path
 ) -> list[str]:
@@ -339,6 +440,9 @@ def run_candle_study(
         "d_streaks": d_summary,
         "e_touch_calendar": cal.to_dicts(),
         "vix_context_q90": vix_note,
+        # mini-purchase spec uses the FULL weekly frame (spec windows predate
+        # nothing — 2017+ is inside the study window, but keep wk for states)
+        "f_purchase_spec": purchase_spec_rows(wk),
         "figures": figures,
     }
 
@@ -495,6 +599,7 @@ def _report_md(res: dict, spot: float) -> str:
             f"when the next week touched an edge vs {v['median_vix_untouched']:.1f} when it "
             "did not — defense weeks cluster in elevated-vol tape.",
         ]
+    lines += ["", *_purchase_spec_md(res["f_purchase_spec"])]
     lines += [
         "",
         "---",

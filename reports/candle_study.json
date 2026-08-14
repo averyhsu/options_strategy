@@ -710,6 +710,518 @@
     "median_vix_touched": 18.96,
     "median_vix_untouched": 14.504999999999999
   },
+  "f_purchase_spec": [
+    {
+      "window": "calm-2017",
+      "entry_friday": "2017-01-06",
+      "spot_close": 2276.97998046875,
+      "ema_state": "bull",
+      "strike_lo": 2185,
+      "strike_hi": 2370,
+      "front_expiry": "2017-01-13",
+      "back_expiry_max": "2017-03-10"
+    },
+    {
+      "window": "calm-2017",
+      "entry_friday": "2017-03-03",
+      "spot_close": 2383.1201171875,
+      "ema_state": "bull",
+      "strike_lo": 2285,
+      "strike_hi": 2480,
+      "front_expiry": "2017-03-10",
+      "back_expiry_max": "2017-05-05"
+    },
+    {
+      "window": "calm-2017",
+      "entry_friday": "2017-05-05",
+      "spot_close": 2399.2900390625,
+      "ema_state": "bull",
+      "strike_lo": 2300,
+      "strike_hi": 2500,
+      "front_expiry": "2017-05-12",
+      "back_expiry_max": "2017-07-07"
+    },
+    {
+      "window": "calm-2017",
+      "entry_friday": "2017-07-07",
+      "spot_close": 2425.179931640625,
+      "ema_state": "bull",
+      "strike_lo": 2325,
+      "strike_hi": 2525,
+      "front_expiry": "2017-07-14",
+      "back_expiry_max": "2017-09-08"
+    },
+    {
+      "window": "calm-2017",
+      "entry_friday": "2017-09-01",
+      "spot_close": 2476.550048828125,
+      "ema_state": "bull",
+      "strike_lo": 2375,
+      "strike_hi": 2580,
+      "front_expiry": "2017-09-08",
+      "back_expiry_max": "2017-11-03"
+    },
+    {
+      "window": "calm-2017",
+      "entry_friday": "2017-11-03",
+      "spot_close": 2587.840087890625,
+      "ema_state": "bull",
+      "strike_lo": 2480,
+      "strike_hi": 2695,
+      "front_expiry": "2017-11-10",
+      "back_expiry_max": "2018-01-05"
+    },
+    {
+      "window": "volmageddon-feb-2018",
+      "entry_friday": "2018-01-26",
+      "spot_close": 2872.8701171875,
+      "ema_state": "bull",
+      "strike_lo": 2755,
+      "strike_hi": 2990,
+      "front_expiry": "2018-02-02",
+      "back_expiry_max": "2018-03-30"
+    },
+    {
+      "window": "volmageddon-feb-2018",
+      "entry_friday": "2018-02-02",
+      "spot_close": 2762.1298828125,
+      "ema_state": "bull",
+      "strike_lo": 2650,
+      "strike_hi": 2875,
+      "front_expiry": "2018-02-09",
+      "back_expiry_max": "2018-04-06"
+    },
+    {
+      "window": "volmageddon-feb-2018",
+      "entry_friday": "2018-02-09",
+      "spot_close": 2619.550048828125,
+      "ema_state": "bear",
+      "strike_lo": 2510,
+      "strike_hi": 2725,
+      "front_expiry": "2018-02-16",
+      "back_expiry_max": "2018-04-13"
+    },
+    {
+      "window": "volmageddon-feb-2018",
+      "entry_friday": "2018-02-16",
+      "spot_close": 2732.219970703125,
+      "ema_state": "bull",
+      "strike_lo": 2620,
+      "strike_hi": 2845,
+      "front_expiry": "2018-02-23",
+      "back_expiry_max": "2018-04-20"
+    },
+    {
+      "window": "volmageddon-feb-2018",
+      "entry_friday": "2018-02-23",
+      "spot_close": 2747.300048828125,
+      "ema_state": "bull",
+      "strike_lo": 2635,
+      "strike_hi": 2860,
+      "front_expiry": "2018-03-02",
+      "back_expiry_max": "2018-04-27"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-02-21",
+      "spot_close": 3337.75,
+      "ema_state": "bull",
+      "strike_lo": 3200,
+      "strike_hi": 3475,
+      "front_expiry": "2020-02-28",
+      "back_expiry_max": "2020-04-24"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-02-28",
+      "spot_close": 2954.219970703125,
+      "ema_state": "bear",
+      "strike_lo": 2835,
+      "strike_hi": 3075,
+      "front_expiry": "2020-03-06",
+      "back_expiry_max": "2020-05-01"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-03-06",
+      "spot_close": 2972.3701171875,
+      "ema_state": "bear",
+      "strike_lo": 2850,
+      "strike_hi": 3095,
+      "front_expiry": "2020-03-13",
+      "back_expiry_max": "2020-05-08"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-03-13",
+      "spot_close": 2711.02001953125,
+      "ema_state": "bear",
+      "strike_lo": 2600,
+      "strike_hi": 2820,
+      "front_expiry": "2020-03-20",
+      "back_expiry_max": "2020-05-15"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-03-20",
+      "spot_close": 2304.919921875,
+      "ema_state": "bear",
+      "strike_lo": 2210,
+      "strike_hi": 2400,
+      "front_expiry": "2020-03-27",
+      "back_expiry_max": "2020-05-22"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-03-27",
+      "spot_close": 2541.469970703125,
+      "ema_state": "bear",
+      "strike_lo": 2435,
+      "strike_hi": 2645,
+      "front_expiry": "2020-04-03",
+      "back_expiry_max": "2020-05-29"
+    },
+    {
+      "window": "covid-mar-2020",
+      "entry_friday": "2020-04-03",
+      "spot_close": 2488.64990234375,
+      "ema_state": "bear",
+      "strike_lo": 2385,
+      "strike_hi": 2590,
+      "front_expiry": "2020-04-09",
+      "back_expiry_max": "2020-06-04"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-01-07",
+      "spot_close": 4677.02978515625,
+      "ema_state": "bull",
+      "strike_lo": 4485,
+      "strike_hi": 4865,
+      "front_expiry": "2022-01-14",
+      "back_expiry_max": "2022-03-11"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-02-04",
+      "spot_close": 4500.52978515625,
+      "ema_state": "bear",
+      "strike_lo": 4320,
+      "strike_hi": 4685,
+      "front_expiry": "2022-02-11",
+      "back_expiry_max": "2022-04-08"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-03-04",
+      "spot_close": 4328.8701171875,
+      "ema_state": "bear",
+      "strike_lo": 4155,
+      "strike_hi": 4505,
+      "front_expiry": "2022-03-11",
+      "back_expiry_max": "2022-05-06"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-04-01",
+      "spot_close": 4545.85986328125,
+      "ema_state": "bull",
+      "strike_lo": 4360,
+      "strike_hi": 4730,
+      "front_expiry": "2022-04-08",
+      "back_expiry_max": "2022-06-03"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-05-06",
+      "spot_close": 4123.33984375,
+      "ema_state": "bear",
+      "strike_lo": 3955,
+      "strike_hi": 4290,
+      "front_expiry": "2022-05-13",
+      "back_expiry_max": "2022-07-08"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-06-03",
+      "spot_close": 4108.5400390625,
+      "ema_state": "bear",
+      "strike_lo": 3940,
+      "strike_hi": 4275,
+      "front_expiry": "2022-06-10",
+      "back_expiry_max": "2022-08-05"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-07-01",
+      "spot_close": 3825.330078125,
+      "ema_state": "bear",
+      "strike_lo": 3670,
+      "strike_hi": 3980,
+      "front_expiry": "2022-07-08",
+      "back_expiry_max": "2022-09-02"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-08-05",
+      "spot_close": 4145.18994140625,
+      "ema_state": "bull",
+      "strike_lo": 3975,
+      "strike_hi": 4315,
+      "front_expiry": "2022-08-12",
+      "back_expiry_max": "2022-10-07"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-09-02",
+      "spot_close": 3924.260009765625,
+      "ema_state": "bear",
+      "strike_lo": 3765,
+      "strike_hi": 4085,
+      "front_expiry": "2022-09-09",
+      "back_expiry_max": "2022-11-04"
+    },
+    {
+      "window": "bear-2022",
+      "entry_friday": "2022-10-07",
+      "spot_close": 3639.659912109375,
+      "ema_state": "bear",
+      "strike_lo": 3490,
+      "strike_hi": 3790,
+      "front_expiry": "2022-10-14",
+      "back_expiry_max": "2022-12-09"
+    },
+    {
+      "window": "vix-spike-aug-2024",
+      "entry_friday": "2024-07-26",
+      "spot_close": 5459.10009765625,
+      "ema_state": "bull",
+      "strike_lo": 5240,
+      "strike_hi": 5680,
+      "front_expiry": "2024-08-02",
+      "back_expiry_max": "2024-09-27"
+    },
+    {
+      "window": "vix-spike-aug-2024",
+      "entry_friday": "2024-08-02",
+      "spot_close": 5346.56005859375,
+      "ema_state": "bull",
+      "strike_lo": 5130,
+      "strike_hi": 5565,
+      "front_expiry": "2024-08-09",
+      "back_expiry_max": "2024-10-04"
+    },
+    {
+      "window": "vix-spike-aug-2024",
+      "entry_friday": "2024-08-09",
+      "spot_close": 5344.16015625,
+      "ema_state": "bull",
+      "strike_lo": 5130,
+      "strike_hi": 5560,
+      "front_expiry": "2024-08-16",
+      "back_expiry_max": "2024-10-11"
+    },
+    {
+      "window": "vix-spike-aug-2024",
+      "entry_friday": "2024-08-16",
+      "spot_close": 5554.25,
+      "ema_state": "bull",
+      "strike_lo": 5330,
+      "strike_hi": 5780,
+      "front_expiry": "2024-08-23",
+      "back_expiry_max": "2024-10-18"
+    },
+    {
+      "window": "vix-spike-aug-2024",
+      "entry_friday": "2024-08-23",
+      "spot_close": 5634.60986328125,
+      "ema_state": "bull",
+      "strike_lo": 5405,
+      "strike_hi": 5860,
+      "front_expiry": "2024-08-30",
+      "back_expiry_max": "2024-10-25"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-04-02",
+      "spot_close": 6582.68994140625,
+      "ema_state": "bear",
+      "strike_lo": 6315,
+      "strike_hi": 6850,
+      "front_expiry": "2026-04-10",
+      "back_expiry_max": "2026-06-05"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-04-10",
+      "spot_close": 6816.89013671875,
+      "ema_state": "bull",
+      "strike_lo": 6540,
+      "strike_hi": 7090,
+      "front_expiry": "2026-04-17",
+      "back_expiry_max": "2026-06-12"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-04-17",
+      "spot_close": 7126.06005859375,
+      "ema_state": "bull",
+      "strike_lo": 6840,
+      "strike_hi": 7415,
+      "front_expiry": "2026-04-24",
+      "back_expiry_max": "2026-06-19"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-04-24",
+      "spot_close": 7165.080078125,
+      "ema_state": "bull",
+      "strike_lo": 6875,
+      "strike_hi": 7455,
+      "front_expiry": "2026-05-01",
+      "back_expiry_max": "2026-06-26"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-05-01",
+      "spot_close": 7230.1201171875,
+      "ema_state": "bull",
+      "strike_lo": 6940,
+      "strike_hi": 7520,
+      "front_expiry": "2026-05-08",
+      "back_expiry_max": "2026-07-03"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-05-08",
+      "spot_close": 7398.93017578125,
+      "ema_state": "bull",
+      "strike_lo": 7100,
+      "strike_hi": 7695,
+      "front_expiry": "2026-05-15",
+      "back_expiry_max": "2026-07-10"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-05-15",
+      "spot_close": 7408.5,
+      "ema_state": "bull",
+      "strike_lo": 7110,
+      "strike_hi": 7705,
+      "front_expiry": "2026-05-22",
+      "back_expiry_max": "2026-07-17"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-05-22",
+      "spot_close": 7473.47021484375,
+      "ema_state": "bull",
+      "strike_lo": 7170,
+      "strike_hi": 7775,
+      "front_expiry": "2026-05-29",
+      "back_expiry_max": "2026-07-24"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-05-29",
+      "spot_close": 7580.06005859375,
+      "ema_state": "bull",
+      "strike_lo": 7275,
+      "strike_hi": 7885,
+      "front_expiry": "2026-06-05",
+      "back_expiry_max": "2026-07-31"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-06-05",
+      "spot_close": 7383.740234375,
+      "ema_state": "bull",
+      "strike_lo": 7085,
+      "strike_hi": 7680,
+      "front_expiry": "2026-06-12",
+      "back_expiry_max": "2026-08-07"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-06-12",
+      "spot_close": 7431.4599609375,
+      "ema_state": "bull",
+      "strike_lo": 7130,
+      "strike_hi": 7730,
+      "front_expiry": "2026-06-18",
+      "back_expiry_max": "2026-08-13"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-06-18",
+      "spot_close": 7500.580078125,
+      "ema_state": "bull",
+      "strike_lo": 7200,
+      "strike_hi": 7805,
+      "front_expiry": "2026-06-26",
+      "back_expiry_max": "2026-08-21"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-06-26",
+      "spot_close": 7354.02001953125,
+      "ema_state": "bull",
+      "strike_lo": 7055,
+      "strike_hi": 7650,
+      "front_expiry": "2026-07-02",
+      "back_expiry_max": "2026-08-27"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-07-02",
+      "spot_close": 7483.240234375,
+      "ema_state": "bull",
+      "strike_lo": 7180,
+      "strike_hi": 7785,
+      "front_expiry": "2026-07-10",
+      "back_expiry_max": "2026-09-04"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-07-10",
+      "spot_close": 7575.39013671875,
+      "ema_state": "bull",
+      "strike_lo": 7270,
+      "strike_hi": 7880,
+      "front_expiry": "2026-07-17",
+      "back_expiry_max": "2026-09-11"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-07-17",
+      "spot_close": 7457.68994140625,
+      "ema_state": "bull",
+      "strike_lo": 7155,
+      "strike_hi": 7760,
+      "front_expiry": "2026-07-24",
+      "back_expiry_max": "2026-09-18"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-07-24",
+      "spot_close": 7411.97998046875,
+      "ema_state": "bull",
+      "strike_lo": 7115,
+      "strike_hi": 7710,
+      "front_expiry": "2026-07-31",
+      "back_expiry_max": "2026-09-25"
+    },
+    {
+      "window": "live-window-2026",
+      "entry_friday": "2026-07-31",
+      "spot_close": 7489.72021484375,
+      "ema_state": "bull",
+      "strike_lo": 7190,
+      "strike_hi": 7790,
+      "front_expiry": "2026-08-07",
+      "back_expiry_max": "2026-10-02"
+    }
+  ],
   "figures": [
     "reports/figures/candle_study/conditional_hist.png",
     "reports/figures/candle_study/bands_and_touches.png"
