@@ -1,4 +1,4 @@
-"""Sweep space over PLAN §8 priors: Sobol points in [0,1)^18 mapped to
+"""Sweep space over PLAN §8 priors: Sobol points in [0,1)^20 mapped to
 WeeklyConfig instances (Track-A form: eod_mid execution, defense collapsed to
 {none, close-side-EOD} per §9.1).
 
@@ -7,6 +7,11 @@ DEFAULT family: short strikes at trailing above-EMA return quantiles, coverage
 q_put/q_call in [0.80, 0.95]) vs "delta" (fallback). Delta dims are inert
 under the percentile family and vice versa; those marginals are expected
 plateaus and the ABC gate treats them as such.
+
+2026-08-16 amendment (near-calendar evidence, PLAN §1.6): `wing_family` splits
+the long_strike_offset prior — "near" (DEFAULT: 0-50 pts from the short,
+0 = pure calendar) vs "wide" (fallback: 50-100 pts); `front_dte` in {7, 14}
+(default 7) makes the front-leg DTE the small dial the author described.
 """
 
 from __future__ import annotations
@@ -29,6 +34,10 @@ DEFENSES = ("none", "close_side_eod")
 RISK_DEFS = ("scenario", "width", "margin")
 RISK_FRACS = (0.10, 0.15, 0.20)
 STRIKE_FAMILIES = ("percentile", "delta")
+WING_FAMILIES = ("near", "wide")  # near = 0-50 pts (default), wide = 50-100 (fallback)
+FRONT_DTES = (7, 14)
+# front_dte -> (front_min_days, front_max_days) window for select_expiries
+FRONT_DTE_WINDOWS = {7: (5, 9), 14: (12, 16)}
 
 DIM_NAMES = [
     "short_put_delta",
@@ -49,6 +58,8 @@ DIM_NAMES = [
     "strike_family",
     "coverage_q_put",
     "coverage_q_call",
+    "wing_family",
+    "front_dte",
 ]
 
 
@@ -68,12 +79,15 @@ def _choice(u: float, options: tuple) -> object:
 def params_from_unit(u: np.ndarray) -> dict:
     """One Sobol point -> raw parameter dict (used for marginals + config)."""
     assert len(u) == len(DIM_NAMES)
+    wing_family = _choice(u[18], WING_FAMILIES)
+    # u[4] scales the offset WITHIN the wing family: near 0..50, wide 50..100
+    offset = u[4] * 50.0 if wing_family == "near" else 50.0 + u[4] * 50.0
     return {
         "short_put_delta": 0.05 + u[0] * 0.45,
         "short_call_delta": 0.05 + u[1] * 0.45,
         "long_put_offset_days": 7 + int(u[2] * 50),  # 7..56
         "long_call_offset_days": 7 + int(u[3] * 50),
-        "long_strike_offset": float(np.round(u[4] * 100 / 5) * 5),  # 0..100 in 5s
+        "long_strike_offset": float(np.round(offset / 5) * 5),  # 5-pt steps
         "credit_threshold_frac": 0.20 + u[5] * 0.40,
         "threshold_reference": _choice(u[6], THRESHOLD_REFS),
         "require_credit": bool(_choice(u[7], (True, False))),
@@ -87,6 +101,8 @@ def params_from_unit(u: np.ndarray) -> dict:
         "strike_family": _choice(u[15], STRIKE_FAMILIES),
         "coverage_q_put": 0.80 + u[16] * 0.15,
         "coverage_q_call": 0.80 + u[17] * 0.15,
+        "wing_family": wing_family,
+        "front_dte": int(_choice(u[19], FRONT_DTES)),
     }
 
 
@@ -107,6 +123,8 @@ def weekly_config(params: dict) -> WeeklyConfig:
             long_put_expiry_offset_days=params["long_put_offset_days"],
             long_call_expiry_offset_days=params["long_call_offset_days"],
             long_strike_offset=params["long_strike_offset"],
+            front_min_days=FRONT_DTE_WINDOWS[params["front_dte"]][0],
+            front_max_days=FRONT_DTE_WINDOWS[params["front_dte"]][1],
             require_credit=params["require_credit"],
             min_credit_frac=params["min_credit_frac"],
         ),

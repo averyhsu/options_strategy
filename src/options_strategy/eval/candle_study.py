@@ -56,6 +56,14 @@ def weekly_conditional_frame(daily: pl.DataFrame, ema_len: int = 21) -> pl.DataF
         next_ret=pl.col("close").shift(-1) / pl.col("close") - 1.0,
         next_high_ret=pl.col("high").shift(-1) / pl.col("close") - 1.0,
         next_low_ret=pl.col("low").shift(-1) / pl.col("close") - 1.0,
+        # 14-day (front_dte=14) variant: two-week horizon outcome vs entry
+        next2_ret=pl.col("close").shift(-2) / pl.col("close") - 1.0,
+        next2_high_ret=pl.max_horizontal(pl.col("high").shift(-1), pl.col("high").shift(-2))
+        / pl.col("close")
+        - 1.0,
+        next2_low_ret=pl.min_horizontal(pl.col("low").shift(-1), pl.col("low").shift(-2))
+        / pl.col("close")
+        - 1.0,
     )
     return wk.filter(pl.col("state") != "warmup").drop_nulls("next_ret")
 
@@ -176,6 +184,32 @@ def _streak(states: list[str], start_idx: int, length: int) -> dict:
     }
 
 
+def coverage_14d(above: pl.DataFrame, q_grid: list[float]) -> pl.DataFrame:
+    """(e) 14-day variant (PLAN §8.2 front_dte=14): band edges from the
+    TWO-week above-EMA return distribution, touch rates from the two-week
+    daily extremes. Same conventions as `coverage_table`."""
+    sub = above.drop_nulls("next2_ret")
+    rets2 = sub["next2_ret"].to_numpy()
+    lo2 = sub["next2_low_ret"].to_numpy()
+    hi2 = sub["next2_high_ret"].to_numpy()
+    rows = []
+    for q in q_grid:
+        put_edge = float(np.quantile(rets2, 1.0 - q))
+        call_edge = float(np.quantile(rets2, q))
+        rows.append(
+            {
+                "q": q,
+                "put_edge_ret": put_edge,
+                "call_edge_ret": call_edge,
+                "p_inside_close": float(((rets2 > put_edge) & (rets2 < call_edge)).mean()),
+                "p_touch_put": float((lo2 <= put_edge).mean()),
+                "p_touch_call": float((hi2 >= call_edge).mean()),
+                "p_touch_any": float(((lo2 <= put_edge) | (hi2 >= call_edge)).mean()),
+            }
+        )
+    return pl.DataFrame(rows)
+
+
 def touch_calendar(above: pl.DataFrame, q_list: list[float]) -> pl.DataFrame:
     """(e): per-year counts of above-EMA entry weeks whose band edge was
     touched intraweek (next week's daily extremes) — the defense-activation
@@ -269,6 +303,20 @@ def _purchase_spec_md(rows: list[dict]) -> list[str]:
         "level difference. The Pass-1 v2 sweep found band strikes NEVER price as",
         "credits on the synthetic surface (0/4096) — this slice is the real-world",
         "test of that finding.",
+        "",
+        "**Evaluation semantics (2026-08-16 amendment — dual reading; the check",
+        "MUST NOT hard-fail debit structures).** For every structure on every",
+        "sample date, `eval/credit_check.py` reports BOTH: (a) signed net premium",
+        "as % of risk (positive = credit), and (b) for debits, max-gain/risk at",
+        'front expiry within the band and whether "+30% of R" is achievable there',
+        "(the near-calendar reading — long-vega wings near the shorts make debits",
+        "the structurally expected case). A near-ATM reference structure (shorts",
+        "at / just outside spot) is priced on every sample date alongside the",
+        'band-edge q-levels: his "big credit only happens if it is ATM or ITM"',
+        "line makes that the direct Branch-B revenue measurement. Wing offsets",
+        "sampled at {0, 25, 50} pts (0 = pure calendar) per the re-centered §8.1",
+        "prior; front_dte 14 needs no extra data (expiries ≤ 63 DTE already",
+        "cover it).",
         "",
         "**Per sample date, request:** SPX + SPXW quotes (NBBO bid/ask + sizes),",
         "EOD snapshot minimum (15:45-16:00 ET; a 10:00 ET snapshot is a cheap",
@@ -401,6 +449,7 @@ def run_candle_study(
 
     # (e) defense-activation calendar
     cal = touch_calendar(above, [0.80, 0.85, 0.90, 0.95])
+    cov14 = coverage_14d(above, [0.85, 0.90, 0.95])
 
     # VIX context on touch weeks (q=0.90), when the free VIX series is present
     vix_note = None
@@ -439,6 +488,7 @@ def run_candle_study(
         "c_q_matching_claimed_wr": wr_q,
         "d_streaks": d_summary,
         "e_touch_calendar": cal.to_dicts(),
+        "e_coverage_14d": cov14.to_dicts(),
         "vix_context_q90": vix_note,
         # mini-purchase spec uses the FULL weekly frame (spec windows predate
         # nothing — 2017+ is inside the study window, but keep wk for states)
@@ -599,6 +649,23 @@ def _report_md(res: dict, spot: float) -> str:
             f"when the next week touched an edge vs {v['median_vix_untouched']:.1f} when it "
             "did not — defense weeks cluster in elevated-vol tape.",
         ]
+    lines += [
+        "",
+        "### 14-day variant (front_dte=14, PLAN §8.2 2026-08-16 amendment)",
+        "",
+        "Band edges from the TWO-week above-EMA return distribution; touch rates",
+        "over the two-week daily extremes:",
+        "",
+        "| q | put edge | call edge | P(close inside) "
+        "| P(touch put) | P(touch call) | P(touch any) |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for r in res["e_coverage_14d"]:
+        lines.append(
+            f"| {r['q']:.2f} | {r['put_edge_ret']:.2%} | {r['call_edge_ret']:.2%} "
+            f"| {r['p_inside_close']:.1%} | {r['p_touch_put']:.1%} "
+            f"| {r['p_touch_call']:.1%} | {r['p_touch_any']:.1%} |"
+        )
     lines += ["", *_purchase_spec_md(res["f_purchase_spec"])]
     lines += [
         "",

@@ -706,6 +706,35 @@
       "touch_call_q95": 2
     }
   ],
+  "e_coverage_14d": [
+    {
+      "q": 0.85,
+      "put_edge_ret": -0.0193415337606749,
+      "call_edge_ret": 0.0254268712362265,
+      "p_inside_close": 0.6998050682261209,
+      "p_touch_put": 0.36744639376218324,
+      "p_touch_call": 0.24366471734892786,
+      "p_touch_any": 0.5818713450292398
+    },
+    {
+      "q": 0.9,
+      "put_edge_ret": -0.026425381421446244,
+      "call_edge_ret": 0.030036273114379064,
+      "p_inside_close": 0.7992202729044834,
+      "p_touch_put": 0.2378167641325536,
+      "p_touch_call": 0.17251461988304093,
+      "p_touch_any": 0.40545808966861596
+    },
+    {
+      "q": 0.95,
+      "put_edge_ret": -0.039956181377003956,
+      "call_edge_ret": 0.03764187070014857,
+      "p_inside_close": 0.898635477582846,
+      "p_touch_put": 0.11306042884990253,
+      "p_touch_call": 0.09259259259259259,
+      "p_touch_any": 0.2037037037037037
+    }
+  ],
   "vix_context_q90": {
     "median_vix_touched": 18.96,
     "median_vix_untouched": 14.504999999999999

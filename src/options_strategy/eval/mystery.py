@@ -49,6 +49,8 @@ CATEGORICAL_DIMS = {
     "risk_definition": 3,
     "risk_fraction": 3,
     "strike_family": 2,
+    "wing_family": 2,
+    "front_dte": 2,
 }
 
 

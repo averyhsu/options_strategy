@@ -83,3 +83,11 @@ Append one entry per completed phase: date | phase | git tag | evidence (test ru
 - **P6 v2** (`experiments/p6v2/`): mystery gate **PASS** — truth (idx 145) covered on ALL 18 dims, 60 accepted, 2 honestly identified (require_credit, regime_action; categorical "identified" tightened to strict-subset rule); robustness: DSR 0.210, PBO 0.505, WFO median OOS share 0.394, ruin P(NAV<50%) 21%@1y/58%@3y.
 - **Tests:** 172 passing (bands unit, percentile equivalence, v2 artifact tests), ruff+mypy clean, CI green.
 - qa.py fix: expected_bars dtype pinned (EOD-only chunks vs intraday chunks vstack).
+
+## Spec change: near-calendar prior + dual-reading credit check (user-approved 2026-08-16) — 2026-08-16
+- **Tag:** `spec/near-calendar-prior`
+- **Evidence basis (PLAN §1.6):** "calendar spread ... You are getting closer" tease; net-long-vega physics (near-strike longer-dated wings required); "or maybe open for further dte"; fee-quote ambiguity ("1 6 dollars per leg") logged. Near-calendar/debit implication retroactively explains the Pass-1 v2 structural finding (0/4096 credit-required percentile configs).
+- **Space v3 (20 dims):** `wing_family` (near 0-50 pts default / wide 50-100 fallback) + `front_dte` {7,14} (maps to front_min/max_days (5,9)/(12,16)); mystery categorical metadata extended; Pass-2 run config `configs/spaces/p4_pass2_coarse.yaml` (seed 20260816, world set when CBOE data lands).
+- **Credit check (`eval/credit_check.py`):** dual reading per structure — (a) signed net premium %risk, (b) debit max-gain/risk at front expiry within the band + "+30% of R" achievability — plus a near-ATM reference structure and `front_premium` (revenue side) per sample date; debits reported, never rejected. Validated on a QA-clean synthetic snapshot world: offset-0 band structures are debits at structure level (consistent with the sweep finding); ATM reference collects strictly richer front premium.
+- **Candle study:** spec section carries the dual-reading evaluation semantics; (e) gains the 14-day (front_dte=14) variant — q=0.95 two-week edges -4.00%/+3.76%, touch-any 20.4% (vs weekly -2.79%/+2.70%, 20.0%).
+- **Tests:** 182 passing (5 credit-check + space v3 + artifact additions), ruff+mypy clean. No heavy phase reruns (prior/spec changes ahead of real data, per the directive).

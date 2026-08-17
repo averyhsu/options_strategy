@@ -132,6 +132,17 @@ band edge (put / call), by coverage q:
 
 VIX context (q=0.90): median entry-week VIX close 19.0 when the next week touched an edge vs 14.5 when it did not — defense weeks cluster in elevated-vol tape.
 
+### 14-day variant (front_dte=14, PLAN §8.2 2026-08-16 amendment)
+
+Band edges from the TWO-week above-EMA return distribution; touch rates
+over the two-week daily extremes:
+
+| q | put edge | call edge | P(close inside) | P(touch put) | P(touch call) | P(touch any) |
+|---|---|---|---|---|---|---|
+| 0.85 | -1.93% | 2.54% | 70.0% | 36.7% | 24.4% | 58.2% |
+| 0.90 | -2.64% | 3.00% | 79.9% | 23.8% | 17.3% | 40.5% |
+| 0.95 | -4.00% | 3.76% | 89.9% | 11.3% | 9.3% | 20.4% |
+
 ## Mini-purchase specification (real-chain credit check at the (b) band edges)
 
 A cheap, targeted options-data slice (e.g. a CBOE DataShop custom order)
@@ -142,6 +153,20 @@ edge (max ~2.8%) plus long wings, with margin for the ^GSPC-proxy-vs-SPX
 level difference. The Pass-1 v2 sweep found band strikes NEVER price as
 credits on the synthetic surface (0/4096) — this slice is the real-world
 test of that finding.
+
+**Evaluation semantics (2026-08-16 amendment — dual reading; the check
+MUST NOT hard-fail debit structures).** For every structure on every
+sample date, `eval/credit_check.py` reports BOTH: (a) signed net premium
+as % of risk (positive = credit), and (b) for debits, max-gain/risk at
+front expiry within the band and whether "+30% of R" is achievable there
+(the near-calendar reading — long-vega wings near the shorts make debits
+the structurally expected case). A near-ATM reference structure (shorts
+at / just outside spot) is priced on every sample date alongside the
+band-edge q-levels: his "big credit only happens if it is ATM or ITM"
+line makes that the direct Branch-B revenue measurement. Wing offsets
+sampled at {0, 25, 50} pts (0 = pure calendar) per the re-centered §8.1
+prior; front_dte 14 needs no extra data (expiries ≤ 63 DTE already
+cover it).
 
 **Per sample date, request:** SPX + SPXW quotes (NBBO bid/ask + sizes),
 EOD snapshot minimum (15:45-16:00 ET; a 10:00 ET snapshot is a cheap

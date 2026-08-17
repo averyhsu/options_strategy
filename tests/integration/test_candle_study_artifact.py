@@ -47,6 +47,23 @@ def test_purchase_spec_rows_are_consistent() -> None:
     assert len(live) >= 16
 
 
+def test_dual_reading_and_14d_variant_present() -> None:
+    """2026-08-16 amendment: the spec must carry the debit-tolerant dual
+    reading + ATM reference, and (e) gains the front_dte=14 variant."""
+    md = (REPO / "reports/candle_study.md").read_text()
+    assert "MUST NOT hard-fail debit structures" in md
+    assert "near-ATM reference structure" in md.lower() or "A near-ATM reference structure" in md
+    assert "### 14-day variant" in md
+    res = json.loads((REPO / "reports/candle_study.json").read_text())
+    cov14 = res["e_coverage_14d"]
+    assert [r["q"] for r in cov14] == [0.85, 0.90, 0.95]
+    # two-week edges must be at least as wide as the weekly ones at same q
+    weekly = {r["q"]: r for r in res["b_coverage"]}
+    for r in cov14:
+        assert r["put_edge_ret"] <= weekly[r["q"]]["put_edge_ret"]
+        assert r["call_edge_ret"] >= weekly[r["q"]]["call_edge_ret"]
+
+
 def test_candle_study_json_answers_all_items() -> None:
     res = json.loads((REPO / "reports/candle_study.json").read_text())
     assert res["ema_len"] == 21

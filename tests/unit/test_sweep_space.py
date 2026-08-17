@@ -24,6 +24,13 @@ def test_sobol_deterministic_and_in_bounds() -> None:
         assert p["strike_family"] in ("percentile", "delta")
         assert 0.80 <= p["coverage_q_put"] <= 0.95
         assert 0.80 <= p["coverage_q_call"] <= 0.95
+        assert p["wing_family"] in ("near", "wide")
+        assert p["front_dte"] in (7, 14)
+        # near-calendar re-centering: offset stays inside its wing family
+        if p["wing_family"] == "near":
+            assert 0.0 <= p["long_strike_offset"] <= 50.0
+        else:
+            assert 50.0 <= p["long_strike_offset"] <= 100.0
 
 
 def test_every_param_maps_to_valid_weekly_config() -> None:
@@ -33,6 +40,9 @@ def test_every_param_maps_to_valid_weekly_config() -> None:
         assert cfg.structure.strike_family == p["strike_family"]
         assert cfg.structure.band_ema_len == p["ema_len"]
         assert cfg.structure.coverage_q_put == p["coverage_q_put"]
+        # front_dte maps onto the expiry-selection window
+        expected = {7: (5, 9), 14: (12, 16)}[p["front_dte"]]
+        assert (cfg.structure.front_min_days, cfg.structure.front_max_days) == expected
         if p["defense"] == "none":
             assert cfg.defense.trigger == "none"
         else:

@@ -1,0 +1,9 @@
+# Pass-2 coarse sweep run knobs (PLAN §9.1) — space v3 (20 dims, 2026-08-16
+# near-calendar amendment: wing_family near/wide, front_dte {7,14}).
+# `world` points at the real-data adapter root; set it when purchased CBOE
+# data lands in data/raw/cboe/ and has passed `options_strategy qa`
+# (data_version bump + P2 invariant rerun come first — PLAN §12.0).
+n_configs: 16384
+seed: 20260816
+world: data/raw/cboe
+out_dir: experiments/p4_pass2
