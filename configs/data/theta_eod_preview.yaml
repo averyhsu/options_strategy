@@ -1,0 +1,25 @@
+# ThetaData FREE-tier EOD preview pull — 2 of the 6 credit-check regimes.
+#
+# Free tier: options EOD history from 2023-06-01, 30 req/min. The two windows
+# below are the only credit-check windows inside that history. Everything else
+# waits for the paid STANDARD month (see reports/theta_pull_plan.md).
+#
+# Licensed vendor data: output lands in data/raw/theta/ (gitignored; never
+# committed — the repo is public).
+
+vendor: thetadata
+dataset: eod_preview
+out_root: data/raw/theta/eod_preview
+
+terminal:
+  base_url: "http://127.0.0.1:25503"
+
+roots: [SPX, SPXW]
+max_dte: 63                  # server-side filter on every request
+strike_window_pct: 0.15      # +-15% of that session's ^GSPC close (client-side trim)
+rate_limit_per_min: 28       # free tier allows 30/min; leave headroom
+spot_source: data/raw/free/gspc_daily.parquet
+
+windows:
+  - {name: vix-spike-aug-2024, start: 2024-07-26, end: 2024-08-23}
+  - {name: live-window-2026,   start: 2026-04-02, end: 2026-07-31}

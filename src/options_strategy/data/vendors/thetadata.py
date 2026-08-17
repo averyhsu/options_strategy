@@ -123,6 +123,33 @@ class TerminalError(RuntimeError):
     pass
 
 
+class RateLimiter:
+    """Spaces requests to at most ``per_min`` per minute (free tier: 30/min).
+
+    ``clock``/``sleeper`` are injectable so tests never actually wait.
+    """
+
+    def __init__(
+        self,
+        per_min: int,
+        clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self.interval = 60.0 / per_min
+        self._clock = clock
+        self._sleep = sleeper
+        self._last: float | None = None
+
+    def wait(self) -> None:
+        now = self._clock()
+        if self._last is not None:
+            remaining = self.interval - (now - self._last)
+            if remaining > 0:
+                self._sleep(remaining)
+                now = self._clock()
+        self._last = now
+
+
 class TerminalClient:
     """Thin HTTP client for the local Theta Terminal v3.
 
@@ -135,11 +162,13 @@ class TerminalClient:
         fetch: Callable[[str], bytes] | None = None,
         retries: int = 3,
         backoff_s: float = 2.0,
+        limiter: RateLimiter | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self._fetch = fetch if fetch is not None else self._http_get
         self.retries = retries
         self.backoff_s = backoff_s
+        self.limiter = limiter
 
     @staticmethod
     def _http_get(url: str) -> bytes:
@@ -148,6 +177,8 @@ class TerminalClient:
             return resp.read()
 
     def _get_csv(self, path: str, params: dict[str, str]) -> pl.DataFrame:
+        if self.limiter is not None:
+            self.limiter.wait()
         query = urllib.parse.urlencode({**params, "format": "csv"})
         url = f"{self.base_url}{path}?{query}"
         last_err: Exception | None = None
@@ -175,6 +206,23 @@ class TerminalClient:
             return []
         col = "expiration" if "expiration" in df.columns else df.columns[-1]
         return sorted(_as_date(v) for v in df[col].unique().to_list())
+
+    def eod_history(self, root: str, date: dt.date, max_dte: int) -> pl.DataFrame:
+        """Free-tier EOD report (OHLC + closing NBBO) for every contract of a
+        root on one session, all expiries within max_dte. One request per
+        (root, date) keeps the server-side max_dte filter unambiguous."""
+        return self._get_csv(
+            "/v3/option/history/eod",
+            {
+                "symbol": root,
+                "expiration": "*",
+                "start_date": _yyyymmdd(date),
+                "end_date": _yyyymmdd(date),
+                "max_dte": str(max_dte),
+                "strike": "*",
+                "right": "both",
+            },
+        )
 
     def at_time_quote(
         self, root: str, expiration: dt.date, date: dt.date, time_of_day: str

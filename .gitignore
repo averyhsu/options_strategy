@@ -25,5 +25,8 @@ data/synthetic/
 experiments/scratch/
 .env
 
+# Orchestrator relay channel (session-local, never committed)
+comms/
+
 # OS
 .DS_Store
