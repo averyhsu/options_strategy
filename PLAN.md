@@ -52,7 +52,7 @@ Source: a Reddit r/algotrading post (July 2026) plus the author's comment replie
 - Claimed EV ≈ **+$450 per contract** opened. Weak constraint; use only as a sanity band on per-contract economics. [stated]
 
 ### 1.5 Costs (author's own numbers — calibrate defaults to these)
-- Fees ≈ **$1.60 per leg** all-in at IBKR. [stated]
+- Fees ≈ **$1.60 per leg** all-in at IBKR. [stated] **(2026-08-16 caveat:** the quote reads "1 6 dollars per leg" — ambiguous between $1.60 and "$1–6". $1.60/leg stays the default; the standing ×1–×3 fee-sensitivity battery brackets the "$1–6" reading. [derived])
 - Slippage ≈ **$5–10 per spread**. [stated]
 - Backtest inputs: bought CBOE historical options data (~$500); SPX candles from IBKR gateway. [stated]
 
@@ -66,6 +66,12 @@ Source: a Reddit r/algotrading post (July 2026) plus the author's comment replie
 - Paper traded **Oct 2025 – Mar 2026**; live money from **April 2026**. [stated]
 - Live window analyzed here: **2026-04-01 → 2026-07-30**. [screenshots]
 - **Identification prior (2026-08-10):** short strikes were almost certainly placed at **percentiles of the above-EMA weekly-return distribution** (a candle-derived coverage band), not at option-market deltas — that is the only strike-placement rule his stated backtest could have produced. Encoded as the default strike family in §8.1. [derived]
+- **2026-08-16 (final thread re-read; source now appears exhausted — author inactive since the breadstan reply, ~10 days):**
+  - A commenter guessed "calendar spread" (zero strike offset, later-expiry wing); author: **"You are getting closer."** Only meaningful if the wings sit NEAR the short strikes. [stated]
+  - He insists the position is **net LONG VEGA** and "benefits from drawdowns." Vega concentrates near-the-money for longer-dated options; far-OTM wings carry little — long vega structurally requires **near-strike, longer-dated wings**. [stated + derived]
+  - Entry flexibility: "...or maybe open for further dte" — if the price isn't there on the weekly, the front leg opens at the NEXT weekly. Front DTE is a small dial {≈7, ≈14}, not a constant. [stated]
+  - **Near-calendar/debit implication:** a later-expiry wing at a similar strike costs MORE than the front-week short, so the package is naturally a **DEBIT or thin credit** — retroactively explaining the Pass-1 v2 structural finding (0/4,096 credit-required percentile configs ever traded on the synthetic surface). His "+30% of risk" therefore has two readings: (a) net credit ≥ 30% of risk, or (b) **30% return-on-risk for a debit structure** (max gain / risk at front expiry); his own "big credit only happens if it is ATM or ITM" supports (b) away from the money. Posterior weight shifts toward Branch B (near-band strikes + defense doing the work) and small wing offsets; Branch A (wide band, fat credit) is disfavored on structure AND on the synthetic pricing evidence. [derived]
+  - Still unanswered on Reddit: bankroll size, an example trade, backtested Sharpe, COVID/2008 drawdowns (the last is unanswerable — no simulation ever existed). [derived]
 
 ### 1.7 Known credibility caveats (keep in the final report)
 - **No out-of-sample results, by the author's own admission** (2026-08-10 disclosure): the strategy as traded was never backtested, only the candle-conditional EV study.
@@ -283,12 +289,13 @@ Everything below is a config field. Ranges = sweep priors.
 | short_call_delta | 5–50Δ (asymmetric allowed; free-delta family only) | 10–25Δ |
 | long_put_expiry | +7d … +90d beyond front | +14…+35d |
 | long_call_expiry | same, may differ from put side | +14…+35d |
-| long_strike_offset | same-strike (calendar) … ±100 pts (diagonal) | 0–50 pts wider |
+| long_strike_offset | **default family 0–50 pts (0 = pure calendar; 2026-08-16 near-calendar re-centering per §1.6)**; wider 50–100+ pts = fallback family | 0–25 pts |
 | net_position | credit required? min credit as % of R | yes; ≥ 10% |
 
 ### 8.2 Entry (resting EV-gated orders)
 | Param | Range | Notes |
 |---|---|---|
+| front_dte | {7, 14} (default 7) | 2026-08-16 amendment: "...or maybe open for further dte" — front DTE is a small dial; changes both the credit and the intraweek touch probability (§8.3 touch calendar gains a 14-day variant) |
 | credit_threshold | 20–60% of reference width | his quotes: 30% typical, 50% "only if ATM/ITM" |
 | threshold_reference | short-strike distance / scenario-R / max-gain | definition itself is a sweep dim |
 | order_window | Fri open→close; or Thu 2pm→Fri close | when resting orders are live |
