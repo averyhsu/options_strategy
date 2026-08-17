@@ -1,0 +1,92 @@
+# ThetaData acquisition spec — real-chain credit check slice
+#
+# Source of truth for the sample plan: reports/candle_study.md
+# "Mini-purchase specification" (51 regime-stratified entry Fridays).
+# Acquisition vendor changed from a CBOE DataShop one-off purchase to a
+# ThetaData subscription (user directive 2026-08-17): Options STANDARD tier
+# ($80/mo) — options tick/NBBO history from 2016-01-01 covers every sample
+# date below, and the at_time snapshot endpoints need Standard+.
+#
+# Licensed vendor data: everything fetched with this config lands in
+# data/raw/thetadata/ (gitignored — the repo is public; never commit).
+#
+# Snapshot times: the spec's EOD snapshot is 15:45 ET (primary) with 16:00
+# as a close-rotation companion; 10:00 ET is the "cheap bonus" morning
+# snapshot. Subscription pricing makes all three free to take.
+
+vendor: thetadata
+dataset: credit_check_slice
+out_root: data/raw/thetadata/credit_check_slice
+
+terminal:
+  base_url: "http://127.0.0.1:25503"   # Theta Terminal v3 local HTTP server
+
+roots: [SPX, SPXW]        # AM-settled monthlies + PM-settled weeklys; never mixed downstream
+max_dte: 63               # calendar days; covers front Friday + all §8.1 back-leg offsets
+snapshot_times:           # ET, minute-boundary (sub-minute times stall the terminal)
+  - "10:00:00"
+  - "15:45:00"
+  - "16:00:00"
+primary_snapshot: "15:45:00"
+strike_pad_points: 50     # widen the spec window for §8.1 wing offsets {0,25,50}
+
+# 51 sample dates (last trading day of each ISO week; spot = ^GSPC proxy close;
+# strike windows ≈ spot ±4% from the spec table).
+samples:
+  # --- calm-2017 (6) ---
+  - {window: calm-2017, entry_date: 2017-01-06, spot: 2277, ema_state: bull, strike_lo: 2185, strike_hi: 2370}
+  - {window: calm-2017, entry_date: 2017-03-03, spot: 2383, ema_state: bull, strike_lo: 2285, strike_hi: 2480}
+  - {window: calm-2017, entry_date: 2017-05-05, spot: 2399, ema_state: bull, strike_lo: 2300, strike_hi: 2500}
+  - {window: calm-2017, entry_date: 2017-07-07, spot: 2425, ema_state: bull, strike_lo: 2325, strike_hi: 2525}
+  - {window: calm-2017, entry_date: 2017-09-01, spot: 2477, ema_state: bull, strike_lo: 2375, strike_hi: 2580}
+  - {window: calm-2017, entry_date: 2017-11-03, spot: 2588, ema_state: bull, strike_lo: 2480, strike_hi: 2695}
+  # --- volmageddon-feb-2018 (5) ---
+  - {window: volmageddon-feb-2018, entry_date: 2018-01-26, spot: 2873, ema_state: bull, strike_lo: 2755, strike_hi: 2990}
+  - {window: volmageddon-feb-2018, entry_date: 2018-02-02, spot: 2762, ema_state: bull, strike_lo: 2650, strike_hi: 2875}
+  - {window: volmageddon-feb-2018, entry_date: 2018-02-09, spot: 2620, ema_state: bear, strike_lo: 2510, strike_hi: 2725}
+  - {window: volmageddon-feb-2018, entry_date: 2018-02-16, spot: 2732, ema_state: bull, strike_lo: 2620, strike_hi: 2845}
+  - {window: volmageddon-feb-2018, entry_date: 2018-02-23, spot: 2747, ema_state: bull, strike_lo: 2635, strike_hi: 2860}
+  # --- covid-mar-2020 (7) ---
+  - {window: covid-mar-2020, entry_date: 2020-02-21, spot: 3338, ema_state: bull, strike_lo: 3200, strike_hi: 3475}
+  - {window: covid-mar-2020, entry_date: 2020-02-28, spot: 2954, ema_state: bear, strike_lo: 2835, strike_hi: 3075}
+  - {window: covid-mar-2020, entry_date: 2020-03-06, spot: 2972, ema_state: bear, strike_lo: 2850, strike_hi: 3095}
+  - {window: covid-mar-2020, entry_date: 2020-03-13, spot: 2711, ema_state: bear, strike_lo: 2600, strike_hi: 2820}
+  - {window: covid-mar-2020, entry_date: 2020-03-20, spot: 2305, ema_state: bear, strike_lo: 2210, strike_hi: 2400}
+  - {window: covid-mar-2020, entry_date: 2020-03-27, spot: 2541, ema_state: bear, strike_lo: 2435, strike_hi: 2645}
+  - {window: covid-mar-2020, entry_date: 2020-04-03, spot: 2489, ema_state: bear, strike_lo: 2385, strike_hi: 2590}
+  # --- bear-2022 (10) ---
+  - {window: bear-2022, entry_date: 2022-01-07, spot: 4677, ema_state: bull, strike_lo: 4485, strike_hi: 4865}
+  - {window: bear-2022, entry_date: 2022-02-04, spot: 4501, ema_state: bear, strike_lo: 4320, strike_hi: 4685}
+  - {window: bear-2022, entry_date: 2022-03-04, spot: 4329, ema_state: bear, strike_lo: 4155, strike_hi: 4505}
+  - {window: bear-2022, entry_date: 2022-04-01, spot: 4546, ema_state: bull, strike_lo: 4360, strike_hi: 4730}
+  - {window: bear-2022, entry_date: 2022-05-06, spot: 4123, ema_state: bear, strike_lo: 3955, strike_hi: 4290}
+  - {window: bear-2022, entry_date: 2022-06-03, spot: 4109, ema_state: bear, strike_lo: 3940, strike_hi: 4275}
+  - {window: bear-2022, entry_date: 2022-07-01, spot: 3825, ema_state: bear, strike_lo: 3670, strike_hi: 3980}
+  - {window: bear-2022, entry_date: 2022-08-05, spot: 4145, ema_state: bull, strike_lo: 3975, strike_hi: 4315}
+  - {window: bear-2022, entry_date: 2022-09-02, spot: 3924, ema_state: bear, strike_lo: 3765, strike_hi: 4085}
+  - {window: bear-2022, entry_date: 2022-10-07, spot: 3640, ema_state: bear, strike_lo: 3490, strike_hi: 3790}
+  # --- vix-spike-aug-2024 (5) ---
+  - {window: vix-spike-aug-2024, entry_date: 2024-07-26, spot: 5459, ema_state: bull, strike_lo: 5240, strike_hi: 5680}
+  - {window: vix-spike-aug-2024, entry_date: 2024-08-02, spot: 5347, ema_state: bull, strike_lo: 5130, strike_hi: 5565}
+  - {window: vix-spike-aug-2024, entry_date: 2024-08-09, spot: 5344, ema_state: bull, strike_lo: 5130, strike_hi: 5560}
+  - {window: vix-spike-aug-2024, entry_date: 2024-08-16, spot: 5554, ema_state: bull, strike_lo: 5330, strike_hi: 5780}
+  - {window: vix-spike-aug-2024, entry_date: 2024-08-23, spot: 5635, ema_state: bull, strike_lo: 5405, strike_hi: 5860}
+  # --- live-window-2026 (18) ---
+  - {window: live-window-2026, entry_date: 2026-04-02, spot: 6583, ema_state: bear, strike_lo: 6315, strike_hi: 6850}
+  - {window: live-window-2026, entry_date: 2026-04-10, spot: 6817, ema_state: bull, strike_lo: 6540, strike_hi: 7090}
+  - {window: live-window-2026, entry_date: 2026-04-17, spot: 7126, ema_state: bull, strike_lo: 6840, strike_hi: 7415}
+  - {window: live-window-2026, entry_date: 2026-04-24, spot: 7165, ema_state: bull, strike_lo: 6875, strike_hi: 7455}
+  - {window: live-window-2026, entry_date: 2026-05-01, spot: 7230, ema_state: bull, strike_lo: 6940, strike_hi: 7520}
+  - {window: live-window-2026, entry_date: 2026-05-08, spot: 7399, ema_state: bull, strike_lo: 7100, strike_hi: 7695}
+  - {window: live-window-2026, entry_date: 2026-05-15, spot: 7408, ema_state: bull, strike_lo: 7110, strike_hi: 7705}
+  - {window: live-window-2026, entry_date: 2026-05-22, spot: 7473, ema_state: bull, strike_lo: 7170, strike_hi: 7775}
+  - {window: live-window-2026, entry_date: 2026-05-29, spot: 7580, ema_state: bull, strike_lo: 7275, strike_hi: 7885}
+  - {window: live-window-2026, entry_date: 2026-06-05, spot: 7384, ema_state: bull, strike_lo: 7085, strike_hi: 7680}
+  - {window: live-window-2026, entry_date: 2026-06-12, spot: 7431, ema_state: bull, strike_lo: 7130, strike_hi: 7730}
+  - {window: live-window-2026, entry_date: 2026-06-18, spot: 7501, ema_state: bull, strike_lo: 7200, strike_hi: 7805}
+  - {window: live-window-2026, entry_date: 2026-06-26, spot: 7354, ema_state: bull, strike_lo: 7055, strike_hi: 7650}
+  - {window: live-window-2026, entry_date: 2026-07-02, spot: 7483, ema_state: bull, strike_lo: 7180, strike_hi: 7785}
+  - {window: live-window-2026, entry_date: 2026-07-10, spot: 7575, ema_state: bull, strike_lo: 7270, strike_hi: 7880}
+  - {window: live-window-2026, entry_date: 2026-07-17, spot: 7458, ema_state: bull, strike_lo: 7155, strike_hi: 7760}
+  - {window: live-window-2026, entry_date: 2026-07-24, spot: 7412, ema_state: bull, strike_lo: 7115, strike_hi: 7710}
+  - {window: live-window-2026, entry_date: 2026-07-31, spot: 7490, ema_state: bull, strike_lo: 7190, strike_hi: 7790}
