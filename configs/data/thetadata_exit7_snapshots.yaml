@@ -1,0 +1,52 @@
+# Exit-at-7dte REALIZED-return snapshots (user addendum 2026-08-18).
+#
+# +7-calendar-day exit sessions for entry Fridays whose exits do NOT coincide
+# with another sample date's snapshots: calm-2017 (6) + bear-2022 (10), plus
+# the tail exit of each weekly-consecutive window (volmageddon, covid, vix-2024,
+# live-2026) whose final entry's exit falls outside the window. All +7d dates
+# verified trading sessions; 2020-04-10 is Good Friday -> exit session 04-09.
+#
+# spot / strike windows are COPIED FROM THE PARENT ENTRY (the legs being
+# marked were struck at entry; the window centers on entry spot).
+
+vendor: thetadata
+dataset: exit7_snapshots
+out_root: data/raw/thetadata/exit7_snapshots
+
+auth:
+  creds_file: ~/theta/creds.txt
+rate_limit_per_min: 120
+
+roots: [SPX, SPXW]
+max_dte: 63
+snapshot_times:
+  - "10:00:00"
+  - "15:45:00"
+  - "16:00:00"
+primary_snapshot: "15:45:00"
+strike_pad_points: 50
+
+samples:
+  # --- calm-2017 exits (entry +7d) ---
+  - {window: calm-2017-exit7, entry_date: 2017-01-13, spot: 2277, ema_state: bull, strike_lo: 2185, strike_hi: 2370}
+  - {window: calm-2017-exit7, entry_date: 2017-03-10, spot: 2383, ema_state: bull, strike_lo: 2285, strike_hi: 2480}
+  - {window: calm-2017-exit7, entry_date: 2017-05-12, spot: 2399, ema_state: bull, strike_lo: 2300, strike_hi: 2500}
+  - {window: calm-2017-exit7, entry_date: 2017-07-14, spot: 2425, ema_state: bull, strike_lo: 2325, strike_hi: 2525}
+  - {window: calm-2017-exit7, entry_date: 2017-09-08, spot: 2477, ema_state: bull, strike_lo: 2375, strike_hi: 2580}
+  - {window: calm-2017-exit7, entry_date: 2017-11-10, spot: 2588, ema_state: bull, strike_lo: 2480, strike_hi: 2695}
+  # --- bear-2022 exits (entry +7d) ---
+  - {window: bear-2022-exit7, entry_date: 2022-01-14, spot: 4677, ema_state: bull, strike_lo: 4485, strike_hi: 4865}
+  - {window: bear-2022-exit7, entry_date: 2022-02-11, spot: 4501, ema_state: bear, strike_lo: 4320, strike_hi: 4685}
+  - {window: bear-2022-exit7, entry_date: 2022-03-11, spot: 4329, ema_state: bear, strike_lo: 4155, strike_hi: 4505}
+  - {window: bear-2022-exit7, entry_date: 2022-04-08, spot: 4546, ema_state: bull, strike_lo: 4360, strike_hi: 4730}
+  - {window: bear-2022-exit7, entry_date: 2022-05-13, spot: 4123, ema_state: bear, strike_lo: 3955, strike_hi: 4290}
+  - {window: bear-2022-exit7, entry_date: 2022-06-10, spot: 4109, ema_state: bear, strike_lo: 3940, strike_hi: 4275}
+  - {window: bear-2022-exit7, entry_date: 2022-07-08, spot: 3825, ema_state: bear, strike_lo: 3670, strike_hi: 3980}
+  - {window: bear-2022-exit7, entry_date: 2022-08-12, spot: 4145, ema_state: bull, strike_lo: 3975, strike_hi: 4315}
+  - {window: bear-2022-exit7, entry_date: 2022-09-09, spot: 3924, ema_state: bear, strike_lo: 3765, strike_hi: 4085}
+  - {window: bear-2022-exit7, entry_date: 2022-10-14, spot: 3640, ema_state: bear, strike_lo: 3490, strike_hi: 3790}
+  # --- tail exits of the weekly-consecutive windows ---
+  - {window: volmageddon-feb-2018-exit7, entry_date: 2018-03-09, spot: 2747, ema_state: bull, strike_lo: 2635, strike_hi: 2860}
+  - {window: covid-mar-2020-exit7, entry_date: 2020-04-09, spot: 2489, ema_state: bear, strike_lo: 2385, strike_hi: 2590}
+  - {window: vix-spike-aug-2024-exit7, entry_date: 2024-08-30, spot: 5635, ema_state: bull, strike_lo: 5405, strike_hi: 5860}
+  - {window: live-window-2026-exit7, entry_date: 2026-08-07, spot: 7490, ema_state: bull, strike_lo: 7190, strike_hi: 7790}

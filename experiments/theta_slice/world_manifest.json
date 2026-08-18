@@ -1,0 +1,11 @@
+{
+  "data_version": "theta_slice_v1",
+  "vendor": "thetadata",
+  "dataset": "credit_check_slice",
+  "kind": "REAL vendor at_time slice (51 spec dates x 3 ET snapshots)",
+  "built_at_utc": "2026-08-18T05:27:42+00:00",
+  "underlying_note": "underlying_bars = PARITY-DERIVED spot (front SPXW fit, forward x df; no index subscription per 2026-08-18 amendment)",
+  "n_sessions": 51,
+  "n_quote_rows": 990888,
+  "snapshots_without_parity_spot": []
+}

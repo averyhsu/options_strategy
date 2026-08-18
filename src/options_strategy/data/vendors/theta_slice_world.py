@@ -79,25 +79,33 @@ def to_option_quotes(raw: pl.DataFrame) -> pl.DataFrame:
 
 
 def parity_spot(quotes: pl.DataFrame, ts: dt.datetime) -> float | None:
-    """Front-SPXW parity spot for one snapshot: forward_hat x df_hat."""
+    """Near-SPXW parity spot for one snapshot: forward_hat x df_hat.
+
+    Uses the SHORTEST expiry with >= MIN_PARITY_STRIKES double-live strike
+    pairs, skipping the same-day 0-DTE chain (near the close it quotes only
+    a couple of live pairs and cannot anchor a fit)."""
     snap = quotes.filter(
         (pl.col("ts") == ts)
         & (pl.col("root") == "SPXW")
         & (pl.col("bid") > 0)
         & (pl.col("ask") >= pl.col("bid"))
+        & (pl.col("expiry_date") > ts.date())
     )
     if snap.is_empty():
         return None
-    front = snap["expiry_date"].min()
-    mids = (
-        snap.filter(pl.col("expiry_date") == front)
-        .with_columns(((pl.col("bid") + pl.col("ask")) / 2).alias("mid"))
-        .pivot(on="cp", index="strike", values="mid", aggregate_function="mean")
+    pairs = (
+        snap.with_columns(((pl.col("bid") + pl.col("ask")) / 2).alias("mid"))
+        .pivot(on="cp", index=["expiry_date", "strike"], values="mid", aggregate_function="mean")
         .drop_nulls()
-        .sort("strike")
     )
-    if mids.height < MIN_PARITY_STRIKES or "C" not in mids.columns or "P" not in mids.columns:
+    if "C" not in pairs.columns or "P" not in pairs.columns:
         return None
+    counts = pairs.group_by("expiry_date").agg(pl.len()).sort("expiry_date")
+    eligible = counts.filter(pl.col("len") >= MIN_PARITY_STRIKES)
+    if eligible.is_empty():
+        return None
+    front = eligible["expiry_date"][0]
+    mids = pairs.filter(pl.col("expiry_date") == front).sort("strike")
     fit = fit_parity(mids["strike"].to_numpy(), mids["C"].to_numpy(), mids["P"].to_numpy())
     if not (np.isfinite(fit.forward) and fit.df > 0):
         return None
