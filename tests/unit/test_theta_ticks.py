@@ -64,3 +64,20 @@ def test_dedup_quote_changes_keeps_first_and_changes() -> None:
     )
     out = dedup_quote_changes(df)
     assert out.height == 3  # first row, bid change, ask change
+
+
+def test_resolve_expiries_prefers_friday_over_wednesday() -> None:
+    week_end = dt.date(2021, 6, 18)  # Friday
+    listed = [
+        dt.date(2021, 6, 21),  # Mon +3: outside window
+        dt.date(2021, 6, 23),  # Wed +5: in window but NOT the front
+        dt.date(2021, 6, 25),  # Fri +7: the true front
+        dt.date(2021, 7, 16),
+    ]
+    front, back = resolve_expiries(week_end, listed)
+    assert front == dt.date(2021, 6, 25)
+    assert back == dt.date(2021, 7, 16)
+    # holiday-shifted Thursday front (+6) still wins when no +7 exists
+    listed_shifted = [dt.date(2021, 6, 24), dt.date(2021, 7, 16)]
+    front2, _ = resolve_expiries(week_end, listed_shifted)
+    assert front2 == dt.date(2021, 6, 24)

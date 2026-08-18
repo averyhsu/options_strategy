@@ -86,11 +86,14 @@ def touch_week_frame() -> pl.DataFrame:
 
 
 def resolve_expiries(week_end: dt.date, listed: list[dt.date]) -> tuple[dt.date, dt.date] | None:
-    """Front = next-Friday weekly (5-9 days out, holiday shifts included —
-    same window as the credit check's front_dte 7); NOT the Mon/Wed weekly."""
-    front = next((e for e in listed if 5 <= (e - week_end).days <= 9), None)
-    if front is None:
+    """Front = the listed expiry CLOSEST to entry+7 days within [5, 9]
+    (ties -> later date). A plain min-in-window pick grabs the Wednesday
+    weekly at +5 and silently shortens the front tenor and defense window —
+    caught 2026-08-18 on the tick pull."""
+    window = [e for e in listed if 5 <= (e - week_end).days <= 9]
+    if not window:
         return None
+    front = min(window, key=lambda e: (abs((e - week_end).days - 7), -(e - week_end).days))
     back = next((e for e in listed if (e - front).days >= 21), None)
     return None if back is None else (front, back)
 
