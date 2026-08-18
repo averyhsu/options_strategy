@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -85,7 +86,9 @@ def touch_week_frame() -> pl.DataFrame:
 
 
 def resolve_expiries(week_end: dt.date, listed: list[dt.date]) -> tuple[dt.date, dt.date] | None:
-    front = next((e for e in listed if 0 < (e - week_end).days <= 9), None)
+    """Front = next-Friday weekly (5-9 days out, holiday shifts included —
+    same window as the credit check's front_dte 7); NOT the Mon/Wed weekly."""
+    front = next((e for e in listed if 5 <= (e - week_end).days <= 9), None)
     if front is None:
         return None
     back = next((e for e in listed if (e - front).days >= 21), None)
@@ -183,6 +186,8 @@ def fetch_weeks(limit: int | None = None) -> dict:
         wk_df.write_parquet(path)
         weeks_done += 1
         bytes_done += path.stat().st_size
+        if shutil.disk_usage(out_dir).free / 1e9 < 40.0:
+            raise VendorError("free disk below 40 GB safety floor — tick pull halted (resumable)")
         proj_gb = bytes_done / weeks_done * total_weeks / 1e9
         if weeks_done % 10 == 1:
             print(
