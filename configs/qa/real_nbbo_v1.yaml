@@ -1,0 +1,11 @@
+# QA config tier: REAL NBBO data, version 1 (user-authorized 2026-08-18;
+# rationale in ASSUMPTIONS.md). The synthetic default (parity_rmse_tol=0.25,
+# no spread scaling) is UNTOUCHED — this tier applies only to real vendor
+# quote data, where closing/at-time NBBO mids carry quoted-spread noise the
+# synthetic mid-precision gate was never calibrated for. Preview evidence:
+# real EOD parity rmse median 0.42 pt / p99 2.1 pt (~3-4 bps of spot).
+#
+# Per-fit tolerance = max(parity_rmse_tol, parity_rmse_spread_mult x median
+# quoted half-spread of the fit's strikes).
+parity_rmse_tol: 1.0
+parity_rmse_spread_mult: 0.5

@@ -254,16 +254,17 @@ def test_fetch_sample_date_filters_and_annotates() -> None:
     fake = _mini_fake()
     session = session_of(fake)
     cfg = _mini_cfg(None)
-    exps = {"SPXW": session.list_expirations("SPXW")}
-    df = fetch_sample_date(session, cfg, cfg.samples[0], exps)
-    # only the 2017-01-13 expiry is <= 63 DTE; 1500-strike row filtered out
+    df = fetch_sample_date(session, cfg, cfg.samples[0])
+    # 1500-strike row is outside window+pad and filtered out
     assert df["strike"].to_list() == [2150.0, 2270.0, 2270.0]
     assert set(df["root"].to_list()) == {"SPXW"}
     assert df["entry_date"].unique().to_list() == [dt.date(2017, 1, 6)]
     assert df["expiration"].dtype == pl.Date
     assert df["regime_window"].unique().to_list() == ["calm-2017"]
     quote_calls = [c for c in fake.calls if c[0] == "option_at_time_quote"]
-    assert len(quote_calls) == 1  # 1 root x 1 expiry in scope x 1 snapshot
+    assert len(quote_calls) == 1  # 1 root x 1 snapshot, BULK expiration=*
+    assert quote_calls[0][1]["expiration"] == "*"
+    assert quote_calls[0][1]["max_dte"] == 63
 
 
 def test_fetch_slice_writes_parquet_manifest_and_resumes(tmp_path) -> None:
@@ -291,14 +292,9 @@ def test_fetch_slice_writes_parquet_manifest_and_resumes(tmp_path) -> None:
 
 def test_missing_columns_raise() -> None:
     fake = FakeLib(
-        {
-            "option_list_expirations": pl.DataFrame(
-                {"symbol": ["SPXW"], "expiration": ["2017-01-13"]}
-            ),
-            "option_at_time_quote": pl.DataFrame({"symbol": ["SPXW"], "strike": [2270.0]}),
-        }
+        {"option_at_time_quote": pl.DataFrame({"symbol": ["SPXW"], "strike": [2270.0]})}
     )
     session = session_of(fake)
     cfg = _mini_cfg(None)
     with pytest.raises(VendorError, match="missing columns"):
-        fetch_sample_date(session, cfg, cfg.samples[0], {"SPXW": [dt.date(2017, 1, 13)]})
+        fetch_sample_date(session, cfg, cfg.samples[0])

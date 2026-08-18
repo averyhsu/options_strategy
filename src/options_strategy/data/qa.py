@@ -70,6 +70,12 @@ class QAConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     parity_rmse_tol: float = 0.25
+    # REAL-NBBO tier (user-authorized 2026-08-18, ASSUMPTIONS.md): when set,
+    # the per-fit rmse tolerance becomes max(parity_rmse_tol, mult x median
+    # quoted half-spread of the fit's strikes). None (default) leaves the
+    # synthetic 0.25-pt gate bit-identical. Set ONLY via a versioned QA
+    # config (configs/qa/), never inline.
+    parity_rmse_spread_mult: float | None = None
     parity_min_strikes: int = 8
     stale_minutes: int = 45
     # Below this mid, quote stillness is normal market behavior (low-delta
@@ -214,7 +220,13 @@ def _parity_fit(sane: pl.DataFrame, cfg: QAConfig) -> tuple[list[dict], dict[tup
         settle = settle_datetime(expiry, grp["am_pm_settle"][0])
         tau_years = (settle - ts.replace(tzinfo=None)).total_seconds() / SECONDS_PER_YEAR
         fit = fit_parity(grp["strike"].to_numpy(), grp["mid"].to_numpy(), grp["mid_p"].to_numpy())
-        ok = bool(fit.rmse <= cfg.parity_rmse_tol and fit.plausible)
+        tol = cfg.parity_rmse_tol
+        if cfg.parity_rmse_spread_mult is not None:
+            med_half = float(
+                np.median(np.concatenate([grp["half"].to_numpy(), grp["half_p"].to_numpy()]))
+            )
+            tol = max(tol, cfg.parity_rmse_spread_mult * med_half)
+        ok = bool(fit.rmse <= tol and fit.plausible)
         fits.append(
             {
                 "ts": ts,

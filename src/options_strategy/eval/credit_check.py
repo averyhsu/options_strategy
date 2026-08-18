@@ -43,6 +43,7 @@ Leg = tuple[dt.date, str, float, int]  # (expiry, cp, strike, ratio)
 @dataclass(frozen=True)
 class StructureMetrics:
     label: str  # "q90", "atm_ref", ...
+    exit_mode: str  # "hold_to_expiry" | "exit_at_<n>dte" (PLAN amendment 2026-08-18)
     wing_offset: float
     short_put: float
     short_call: float
@@ -80,29 +81,30 @@ def _nearest(chain: pl.DataFrame, expiry: dt.date, cp: str, target: float) -> fl
     return float(strikes[int(np.argmin(np.abs(strikes - target)))])
 
 
-def _value_at_front_expiry(
+def _value_at_horizon(
     legs: list[Leg],
     mids: dict[Leg, float],
     s_grid: np.ndarray,
     spot: float,
     fits: dict[dt.date, tuple[float, float, float]],
-    front_expiry: dt.date,
+    horizon_tau: float,
 ) -> np.ndarray:
-    """Position value (points) at front expiry across an S grid: expiring legs
-    at intrinsic, later legs via Black-76 at their current sticky-strike IV."""
-    front_tau = fits[front_expiry][2]
+    """Position value (points) at a horizon across an S grid: legs expiring
+    at/before the horizon at intrinsic, later legs via Black-76 at their
+    current sticky-strike IV with tau reduced by the horizon (so an
+    exit-before-front-expiry horizon values the SHORTS via Black-76 too)."""
     total = np.zeros(len(s_grid))
     for leg in legs:
         expiry, cp, strike, ratio = leg
         w = 1 if cp == "C" else -1
-        if expiry == front_expiry:
+        f_hat, df_hat, tau = fits[expiry]
+        if tau <= horizon_tau + 1e-9:
             total += ratio * np.maximum(w * (s_grid - strike), 0.0)
             continue
-        f_hat, df_hat, tau = fits[expiry]
         iv = float(implied_vol(mids[leg], f_hat, strike, tau, df_hat, cp=w))
         if not np.isfinite(iv):
             iv = 1e-4  # unpriceable wing: value at intrinsic-forward
-        tau_left = max(tau - front_tau, 1e-9)
+        tau_left = max(tau - horizon_tau, 1e-9)
         carry = math.log(f_hat / spot) / tau
         f_prime = s_grid * math.exp(carry * tau_left)
         r_rate = -math.log(df_hat) / tau if df_hat > 0 else 0.0
@@ -122,6 +124,8 @@ def structure_metrics(
     wing_offset: float,
     label: str,
     n_grid: int = 41,
+    *,
+    exit_dte: int | None = None,
 ) -> StructureMetrics | None:
     sp = _nearest(chain, front_expiry, "P", put_target)
     sc = _nearest(chain, front_expiry, "C", call_target)
@@ -152,12 +156,17 @@ def structure_metrics(
     width = max(abs(sp - lp), abs(sc - lc))
     risk_points = max(width + net_debit, RISK_FLOOR_POINTS)
 
+    front_tau = fits[front_expiry][2]
+    horizon_tau = front_tau if exit_dte is None else front_tau - exit_dte / 365.0
+    if horizon_tau <= 0:
+        return None  # exit horizon precedes entry: not a valid variant here
     s_grid = np.linspace(sp, sc, n_grid)
-    value = _value_at_front_expiry(legs, mids, s_grid, spot, fits, front_expiry)
+    value = _value_at_horizon(legs, mids, s_grid, spot, fits, horizon_tau)
     max_gain = float(np.max(value) - net_debit)
     max_gain_pct = max_gain / risk_points
     return StructureMetrics(
         label=label,
+        exit_mode="hold_to_expiry" if exit_dte is None else f"exit_at_{exit_dte}dte",
         wing_offset=wing_offset,
         short_put=sp,
         short_call=sc,
@@ -193,10 +202,13 @@ def run_credit_check(
     wing_offsets: tuple[float, ...] = DEFAULT_WING_OFFSETS,
     front_dte_window: tuple[int, int] = (5, 9),
     back_offset_days: int = DEFAULT_BACK_OFFSET_DAYS,
+    exit_dtes: tuple[int | None, ...] = (None,),
 ) -> pl.DataFrame:
     """All structures for one sample date. `band_edges` maps label ->
     (put_edge_ret, call_edge_ret), e.g. from the candle study's (b) table;
-    a near-ATM reference is always added."""
+    a near-ATM reference is always added. `exit_dtes` adds early-exit
+    variants (None = hold to front expiry; 7 = exit when front has 7 DTE,
+    the 2026-08-18 amendment's `exit_at_7dte` for 14-day fronts)."""
     expiries = sorted({e for e in chain["expiry_date"].unique().to_list() if e in fits})
     lo, hi = front_dte_window
     front = next((e for e in expiries if lo <= (e - session).days <= hi), None)
@@ -215,7 +227,11 @@ def run_credit_check(
         targets.append(("atm_ref", atm[0], atm[1]))
     for label, put_t, call_t in targets:
         for off in wing_offsets:
-            m = structure_metrics(chain, spot, fits, front, back, put_t, call_t, off, label)
-            if m is not None:
-                rows.append({"session": session, **asdict(m)})
+            for exit_dte in exit_dtes:
+                m = structure_metrics(
+                    chain, spot, fits, front, back, put_t, call_t, off, label,
+                    exit_dte=exit_dte,
+                )
+                if m is not None:
+                    rows.append({"session": session, **asdict(m)})
     return pl.DataFrame(rows)

@@ -33,8 +33,10 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -114,7 +116,9 @@ def _as_date(v: object) -> dt.date:
 class RateLimiter:
     """Spaces requests to at most ``per_min`` per minute (free tier: 30/min).
 
-    ``clock``/``sleeper`` are injectable so tests never actually wait.
+    Thread-safe (bulk fetches run a few concurrent workers within the
+    STANDARD 4-connection allowance). ``clock``/``sleeper`` are injectable
+    so tests never actually wait.
     """
 
     def __init__(
@@ -127,15 +131,17 @@ class RateLimiter:
         self._clock = clock
         self._sleep = sleeper
         self._last: float | None = None
+        self._lock = threading.Lock()
 
     def wait(self) -> None:
-        now = self._clock()
-        if self._last is not None:
-            remaining = self.interval - (now - self._last)
-            if remaining > 0:
-                self._sleep(remaining)
-                now = self._clock()
-        self._last = now
+        with self._lock:
+            now = self._clock()
+            if self._last is not None:
+                remaining = self.interval - (now - self._last)
+                if remaining > 0:
+                    self._sleep(remaining)
+                    now = self._clock()
+            self._last = now
 
 
 def make_library_client(creds_file: Path):
@@ -219,7 +225,7 @@ class ThetaSession:
     def at_time_quote(
         self, root: str, expiration: dt.date, date: dt.date, time_of_day: str
     ) -> pl.DataFrame:
-        """NBBO snapshot at a minute-boundary ET time (Standard+)."""
+        """NBBO snapshot at a minute-boundary ET time, one expiry (Standard+)."""
         return self._call(
             "option_at_time_quote",
             symbol=root,
@@ -229,6 +235,23 @@ class ThetaSession:
             expiration=expiration,
             strike="*",
             right="both",
+        )
+
+    def at_time_bulk(
+        self, root: str, date: dt.date, time_of_day: str, max_dte: int
+    ) -> pl.DataFrame:
+        """NBBO snapshot for EVERY expiry <= max_dte in one request — measured
+        ~50s per (root, time) vs ~6s x ~39 expiries individually."""
+        return self._call(
+            "option_at_time_quote",
+            symbol=root,
+            start_date=date,
+            end_date=date,
+            time_of_day=time_of_day,
+            expiration="*",
+            strike="*",
+            right="both",
+            max_dte=max_dte,
         )
 
 
@@ -277,22 +300,24 @@ def fetch_sample_date(
     session: ThetaSession,
     cfg: SliceConfig,
     sample: SampleDate,
-    exps_by_root: dict[str, list[dt.date]],
+    max_workers: int = 3,
 ) -> pl.DataFrame:
+    """One bulk (expiration=*, server-side max_dte) request per (root, time),
+    a few in flight at once — within the STANDARD 4-connection allowance."""
     lo = sample.strike_lo - cfg.strike_pad_points
     hi = sample.strike_hi + cfg.strike_pad_points
-    frames: list[pl.DataFrame] = []
-    for root in cfg.roots:
-        for exp in expiries_in_scope(exps_by_root[root], sample.entry_date, cfg.max_dte):
-            for snap_time in cfg.snapshot_times:
-                df = session.at_time_quote(root, exp, sample.entry_date, snap_time)
-                if df.is_empty():
-                    continue
-                frames.append(
-                    _normalize(df, root, snap_time, sample).filter(
-                        pl.col("strike").is_between(lo, hi)
-                    )
-                )
+
+    def one(root: str, snap_time: str) -> pl.DataFrame:
+        df = session.at_time_bulk(root, sample.entry_date, snap_time, cfg.max_dte)
+        if df.is_empty():
+            return df
+        return _normalize(df, root, snap_time, sample).filter(
+            pl.col("strike").is_between(lo, hi)
+        )
+
+    jobs = [(root, t) for root in cfg.roots for t in cfg.snapshot_times]
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        frames = [f for f in pool.map(lambda j: one(*j), jobs) if not f.is_empty()]
     if not frames:
         return pl.DataFrame()
     return pl.concat(frames, how="diagonal").sort(
@@ -357,10 +382,6 @@ def fetch_slice(
     session = session or make_session(cfg.creds_file, cfg.rate_limit_per_min)
     out_dir = cfg.out_root / "quotes"
     out_dir.mkdir(parents=True, exist_ok=True)
-    exps_by_root = {root: session.list_expirations(root) for root in cfg.roots}
-    for root, exps in exps_by_root.items():
-        if not exps:
-            raise VendorError(f"no expirations listed for root {root}")
 
     per_date: list[dict] = []
     for sample in cfg.samples:
@@ -368,7 +389,7 @@ def fetch_slice(
         if path.exists() and not force:
             per_date.append(_date_stats(pl.read_parquet(path), sample))
             continue
-        df = fetch_sample_date(session, cfg, sample, exps_by_root)
+        df = fetch_sample_date(session, cfg, sample)
         stats = _date_stats(df, sample)
         if df.is_empty():
             # Leave no file so a rerun retries this date; record the gap.
