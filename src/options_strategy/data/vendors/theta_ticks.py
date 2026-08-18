@@ -145,6 +145,7 @@ def fetch_weeks(limit: int | None = None) -> dict:
     bytes_done = 0
     weeks_done = 0
     skipped: list[str] = []
+    failed_requests: list[str] = []
     rows_iter = weeks.head(limit).rows(named=True) if limit else weeks.rows(named=True)
     total_weeks = min(limit, weeks.height) if limit else weeks.height
     for row in rows_iter:
@@ -165,7 +166,15 @@ def fetch_weeks(limit: int | None = None) -> dict:
         frames = []
         for leg in week_contracts(row, front, back):
             for day in days:
-                df = tick_day(session, leg, day)
+                try:
+                    df = tick_day(session, leg, day)
+                except VendorError as e:
+                    # vendor-side 500s on single contract-days (observed:
+                    # ArrayIndexOutOfBoundsException) must not kill the run
+                    tag = f"{week_end}:{leg['expiration']}:{leg['strike']:g}{leg['right'][0]}:{day}"
+                    failed_requests.append(tag)
+                    print(f"  REQUEST FAILED {tag} ({type(e).__name__})", flush=True)
+                    continue
                 if df.is_empty():
                     continue
                 if dedup:
@@ -206,6 +215,7 @@ def fetch_weeks(limit: int | None = None) -> dict:
         "n_touch_weeks": weeks.height,
         "n_weeks_stored": weeks_done,
         "skipped_weeks": skipped,
+        "failed_requests": failed_requests,
         "dedup_applied": dedup,
         "bytes_total": bytes_done,
         "license_note": "Licensed ThetaData data; gitignored, never commit.",
