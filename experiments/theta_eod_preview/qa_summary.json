@@ -1,0 +1,27 @@
+{
+  "calendar_violations": 0,
+  "clean": false,
+  "data_version": "theta_eod_preview_v1",
+  "missed_injected": {
+    "crossed_locked_rows": 0,
+    "stale_episodes": 0
+  },
+  "missing_bars_total": 0,
+  "n_flagged_rows": 3227,
+  "n_parity_bad": 2479,
+  "n_parity_fits": 3351,
+  "n_rows": 1211792,
+  "n_sessions": 104,
+  "sessions_without_file": 0,
+  "structure_violations": {
+    "bound": 0,
+    "fly": 5,
+    "mono": 0
+  },
+  "truth": {},
+  "unexpected": {
+    "parity_bad": 2479,
+    "sanity_rows": 3222,
+    "structure_rows": 5
+  }
+}

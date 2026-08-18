@@ -1,0 +1,12 @@
+{
+  "data_version": "theta_eod_preview_v1",
+  "vendor": "thetadata",
+  "dataset": "eod_preview",
+  "kind": "REAL vendor EOD preview (2 of 6 credit-check regimes)",
+  "built_at_utc": "2026-08-18T02:17:10+00:00",
+  "underlying_note": "underlying_bars = free ^GSPC daily OHLC (proxy, not SPX prints), one bar per session at the canonical close ts",
+  "n_sessions": 104,
+  "n_quote_rows": 1211792,
+  "strike_window_pct": 0.15,
+  "max_dte": 63
+}
