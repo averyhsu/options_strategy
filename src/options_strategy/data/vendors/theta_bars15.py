@@ -62,11 +62,56 @@ def spot_closes() -> dict[dt.date, float]:
     return dict(zip(df["date"].to_list(), df["close"].to_list(), strict=True))
 
 
-def fetch_day(session: ThetaSession, day: dt.date, spot: float) -> pl.DataFrame:
+def _bars15_root_fallback(
+    session: ThetaSession, root: str, day: dt.date, exps: list[dt.date]
+) -> pl.DataFrame:
+    """Per-expiry requests for one root — some older SPX days 500 on the
+    expiration=* wildcard (vendor INTERNAL, observed 2017) while narrow
+    requests succeed."""
+    frames = []
+    for exp in exps:
+        if not 0 < (exp - day).days <= MAX_DTE:
+            continue
+        df = session._call(
+            "option_history_quote",
+            symbol=root,
+            expiration=exp,
+            interval=INTERVAL,
+            date=day,
+            strike="*",
+            right="both",
+        )
+        if not df.is_empty():
+            frames.append(df)
+    return pl.concat(frames, how="diagonal") if frames else pl.DataFrame()
+
+
+def fetch_day(
+    session: ThetaSession,
+    day: dt.date,
+    spot: float,
+    exps_by_root: dict[str, list[dt.date]] | None = None,
+    failed_roots: list[str] | None = None,
+) -> pl.DataFrame:
     lo, hi = spot * (1 - STRIKE_PCT), spot * (1 + STRIKE_PCT)
     frames = []
     for root in ROOTS:
-        df = bars15_day(session, root, day)
+        try:
+            df = bars15_day(session, root, day)
+        except VendorError:
+            # wildcard failed after retries: per-expiry fallback, then
+            # per-root isolation (never lose the OTHER root's data)
+            try:
+                exps = (exps_by_root or {}).get(root) or session.list_expirations(root)
+                if exps_by_root is not None:
+                    exps_by_root[root] = exps
+                df = _bars15_root_fallback(session, root, day, exps)
+            except VendorError:
+                df = pl.DataFrame()
+            if df.is_empty():
+                if failed_roots is not None:
+                    failed_roots.append(f"{day}:{root}")
+                continue
         if df.is_empty():
             continue
         missing = [c for c in QUOTE_COLS_REQUIRED if c not in df.columns]
@@ -120,10 +165,12 @@ def fetch_range(start: dt.date, end: dt.date, workers: int = 4) -> dict:
     bytes_new = 0
 
     failed: list[str] = []
+    failed_roots: list[str] = []
+    exps_cache: dict[str, list[dt.date]] = {}
 
     def pull_one(day: dt.date) -> tuple[dt.date, int, int]:
         try:
-            df = fetch_day(session, day, spots[day])
+            df = fetch_day(session, day, spots[day], exps_cache, failed_roots)
         except VendorError as e:
             # one poisoned (root, day) must not kill a multi-day run; the
             # missing file makes the next resume retry it automatically
@@ -162,6 +209,7 @@ def fetch_range(start: dt.date, end: dt.date, workers: int = 4) -> dict:
         "n_sessions_total": len(days),
         "n_sessions_present": done + fetched,
         "failed_days": failed,
+        "failed_roots": failed_roots,
         "license_note": "Licensed ThetaData data; gitignored, never commit.",
     }
     (OUT_ROOT / "raw_manifest.json").write_text(json.dumps(manifest, indent=2))
