@@ -5,12 +5,14 @@ needs beyond the free-tier preview. STANDARD: tick-level options history
 from 2016-01-01, 4 concurrent requests. All output is licensed vendor data
 → `data/raw/theta/` (gitignored, never committed).
 
-**Calibration caveat:** contract counts marked (†) are estimated from CBOE
-listing rules (M/W/F SPXW weeklies + SPX monthlies ≤ 63 DTE ≈ 28–30
-expiries per sample date; 5-pt strike spacing near ATM widening to 25/50 in
-the wings). The free-tier preview pull measures real contracts-per-day —
-re-run these numbers from `raw_manifest.json` before the paid month starts.
-Request timing assumes ~0.4–1 s/request sustained on 4 lanes.
+**RECALIBRATED 2026-08-18** from the preview pull's `raw_manifest.json`
+(104 real sessions): median **15,663** contract-rows/day raw (both roots,
+DTE ≤ 63, all strikes), **~11.8k/day** after the ±15% strike trim —
+2024–2026 tape; 2016–2017 lists fewer weeklies so early years run lighter.
+Paid-month amendments (user, 2026-08-18): decade density = **15-minute
+bars** (1-min rejected); touch weeks = **union of q85–q95**; index add-on
+**permanently excluded**. STANDARD verified active (auth handshake
+options=2; 2017 at_time probe returned rows).
 
 ## (a) Four remaining kill windows — EOD-basis credit-check slice
 
@@ -26,34 +28,32 @@ via the existing `at_time` slice fetcher (3 snapshots: 10:00 / 15:45 /
 | rows kept | ~1,500 quote rows/date-snapshot × 84 date-snapshots | ~130k |
 | disk | parquet, ~40 B/row | **< 10 MB** |
 
-## (b) 2016 → present decade, 1-minute NBBO bars (filtered)
+## (b) 2016 → present decade, 15-MINUTE NBBO bars (DECIDED 2026-08-18)
 
 Filters: DTE ≤ 63 (server-side), strikes within ±15% of spot, RTH only.
-This is the dominant item and the reason to sanity-check scale first:
+1-minute rejected: preview measured ~11.8k filtered contracts/day, and
+1-min buys resolution the strategy never uses — defense timing is covered
+by the tick layer (c).
 
 | quantity | formula | value |
 |---|---|---|
 | trading days | 2016-01-04 → present | ~2,670 |
-| contracts/day | ~30 expiries† × ~120 strikes† × 2 rights, post-filter | ~5,000–9,000 |
-| rows/day @ 1-min | contracts × 390 bars | ~2.0–3.5 M |
-| rows total | days × rows/day | **~5–9 BILLION** |
-| disk | ~25–40 B/row parquet | **~150–350 GB** |
-| requests | per (root, expiry, month) bulk ≈ 2,670 days ÷ 21 × 30 | ~65–85k |
-| wall time | 75k ÷ 4 lanes × ~1 s | **~5–6 h** (transfer-bound; could be 2–3×) |
+| contracts/day | measured 11.8k (2024–26); early years lighter | ~5,000–12,000 |
+| rows/day @ 15-min | contracts × 26 RTH bars | ~130–310k |
+| rows total | days × rows/day | **~500–800 M** |
+| disk | ~30–40 B/row parquet | **~25–40 GB** |
+| requests | per (root, session) with expiration=* | ~5,340 |
+| wall time | sequential at ~1–3 s/request (payload-bound) | **~2–5 h** |
 
-**Recommendation before committing disk:** the strategy needs 1-min density
-only around entries and defense triggers. A 15-min bar decade is ~25–45 GB
-and preserves the touch/defense timeline; 1-min (or tick, item c) can then
-be pulled surgically. Decide before the paid month; both variants fit the
-same request structure, only `ivl` changes.
+## (c) Tick NBBO — defense-calendar touch weeks (AMENDED: q85–q95 union)
 
-## (c) Tick NBBO — defense-calendar touch weeks only
-
-Candle-study §(e), q=0.90 touch weeks restricted to 2016+ (STANDARD floor):
-put-side 81 + call-side 65 entry-week touches, ≤ **~146 weeks** (unique
-weeks fewer; exact list generated from the study artifact at pull time).
-Scope: the traded legs only (2 shorts + 2 wings + roll candidates ≈ 8–12
-contracts/week), entry Friday + 5 defense days.
+Candle-study §(e) touch weeks restricted to 2016+ (STANDARD floor), now the
+**union of q85, q90, q95 put/call touches** (user amendment 2026-08-18) —
+roughly 1.5–2× the q90-only list, so ≈ **200–290 weeks** (exact list
+generated from the study machinery at pull time). Scope: the traded legs
+only (2 shorts + 2 wings + roll candidates ≈ 8–12 contracts/week), entry
+Friday + 5 defense days. Quote-change-only dedup applies if projected disk
+exceeds ~100 GB.
 
 | quantity | formula | value |
 |---|---|---|
@@ -65,14 +65,12 @@ contracts/week), entry Friday + 5 defense days.
 Trim lever if needed: 100 ms conflation or quote-change-only dedup cuts
 ~5–10× with no loss for defense-trigger timing.
 
-## (d) Index history 2022+ (optional validation)
+## (d) Index history — EXCLUDED PERMANENTLY (user amendment 2026-08-18)
 
-SPX 1-min index prints 2022-01-01 → present: ~1,160 days × 390 bars ≈
-450k rows, < 50 MB, ~60 requests, minutes. **Caveat: this needs Theta's
-INDEX subscription (separate product; STANDARD index tier), which the data
-plan currently excludes** — it is optional validation of the parity-derived
-index only. Pre-2022 stays parity-derived regardless (wider touch-timing
-error bars, logged in ASSUMPTIONS.md 2026-08-17).
+No Theta index subscription, ever, under this plan. Pre- AND post-2022
+intraday index levels stay parity-derived from option quotes (free ^GSPC
+candles for daily context); touch-timing error-bar caveat stands
+(ASSUMPTIONS.md 2026-08-17).
 
 ## Sequencing for the paid month
 

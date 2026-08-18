@@ -23,7 +23,9 @@ out_root: data/raw/thetadata/credit_check_slice
 # codebase never reads its contents.
 auth:
   creds_file: ~/theta/creds.txt
-rate_limit_per_min: 28
+# STANDARD tier (verified 2026-08-18): 4 concurrent allowed; we stay sequential
+# at 2 req/s — well inside the allowance, ~40-75 min for the full 51-date slice
+rate_limit_per_min: 120
 
 roots: [SPX, SPXW]        # AM-settled monthlies + PM-settled weeklys; never mixed downstream
 max_dte: 63               # calendar days; covers front Friday + all §8.1 back-leg offsets
