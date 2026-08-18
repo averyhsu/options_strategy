@@ -155,24 +155,68 @@ def make_library_client(creds_file: Path):
 class ThetaSession:
     """Rate-limited, retrying wrapper around the official ThetaClient.
 
-    ``client`` is injectable so tests use a fake with the same three methods.
-    NoDataFoundError is normalized to an empty frame (an expiry that was not
-    listed on a historical date is data absence, not an error).
+    ``client`` (or a ``client_factory``) is injectable so tests use a fake
+    with the same methods. NoDataFoundError is normalized to an empty frame
+    (an expiry that was not listed on a historical date is data absence, not
+    an error).
+
+    Hang protection: the vendor library issues gRPC calls with NO deadline —
+    a stalled stream blocks forever (observed 2026-08-18 on the decade pull).
+    Every call runs under ``call_timeout_s``; on timeout OR an
+    UNAUTHENTICATED/session error the client is REBUILT via the factory
+    (allowed: pulls are strictly sequential, and a fresh login invalidates
+    only our own dead session) and the call retried.
     """
 
     def __init__(
         self,
-        client,
+        client=None,
+        client_factory: Callable[[], object] | None = None,
         limiter: RateLimiter | None = None,
         retries: int = 3,
         backoff_s: float = 2.0,
         sleeper: Callable[[float], None] = time.sleep,
+        call_timeout_s: float | None = 300.0,
     ) -> None:
-        self.client = client
+        if client is None and client_factory is None:
+            raise ValueError("client or client_factory required")
+        self._client = client
+        self._factory = client_factory
         self.limiter = limiter
         self.retries = retries
         self.backoff_s = backoff_s
         self._sleep = sleeper
+        self.call_timeout_s = call_timeout_s
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = self._factory()  # type: ignore[misc]
+        return self._client
+
+    def _rebuild_client(self) -> bool:
+        if self._factory is None:
+            return False
+        self._client = self._factory()
+        return True
+
+    def _invoke(self, method: str, kwargs: dict):
+        fn = getattr(self.client, method)
+        if self.call_timeout_s is None:
+            return fn(**kwargs)
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import TimeoutError as FutTimeout
+
+        # one throwaway worker per call: an abandoned hung call must not
+        # block subsequent calls' workers
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(fn, **kwargs)
+            try:
+                return fut.result(timeout=self.call_timeout_s)
+            except FutTimeout:
+                fut.cancel()
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise TimeoutError(f"vendor call exceeded {self.call_timeout_s}s") from None
 
     def _call(self, method: str, **kwargs) -> pl.DataFrame:
         if self.limiter is not None:
@@ -180,8 +224,12 @@ class ThetaSession:
         last_err: Exception | None = None
         for attempt in range(self.retries):
             try:
-                out = getattr(self.client, method)(**kwargs)
+                out = self._invoke(method, kwargs)
                 return out if isinstance(out, pl.DataFrame) else pl.DataFrame(out)
+            except TimeoutError as e:
+                last_err = e
+                if not self._rebuild_client():
+                    raise VendorError(f"{method} hung and no client_factory to rebuild: {e}") from e
             except Exception as e:  # vendor lib: NoDataFoundError / grpc.RpcError
                 name = type(e).__name__
                 if name == "NoDataFoundError":
@@ -189,6 +237,10 @@ class ThetaSession:
                 if name == "AuthenticationError":
                     raise VendorError(f"authentication failed: {e}") from e
                 last_err = e
+                # a stolen/expired session surfaces as UNAUTHENTICATED grpc
+                # status — rebuild instead of futile same-session retries
+                if "UNAUTHENTICATED" in str(e) or "Invalid session" in str(e):
+                    self._rebuild_client()
             self._sleep(self.backoff_s * (attempt + 1))
         raise VendorError(f"{method}({kwargs}) failed after {self.retries} tries: {last_err}")
 
@@ -257,7 +309,8 @@ class ThetaSession:
 
 def make_session(creds_file: Path, rate_limit_per_min: int) -> ThetaSession:
     return ThetaSession(
-        make_library_client(creds_file), limiter=RateLimiter(rate_limit_per_min)
+        client_factory=lambda: make_library_client(creds_file),
+        limiter=RateLimiter(rate_limit_per_min),
     )
 
 
