@@ -103,38 +103,48 @@ def free_gb(path: Path) -> float:
     return shutil.disk_usage(path).free / 1e9
 
 
-def fetch_range(start: dt.date, end: dt.date) -> dict:
+def fetch_range(start: dt.date, end: dt.date, workers: int = 4) -> dict:
+    """Days fan out over ``workers`` threads sharing ONE session (STANDARD
+    allows 4 concurrent streams per session; a second login would kill the
+    session — see ASSUMPTIONS 2026-08-18)."""
+    from concurrent.futures import ThreadPoolExecutor
+
     session = make_session(CREDS, rate_limit_per_min=240)
     raw_dir = OUT_ROOT / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     spots = spot_closes()
     days = [d for d in load_sessions(start, end)["session"].to_list() if d in spots]
-    done = 0
+    todo = [d for d in days if not (raw_dir / f"date={d}.parquet").exists()]
+    done = len(days) - len(todo)
     fetched = 0
     bytes_new = 0
-    for i, day in enumerate(days):
-        path = raw_dir / f"date={day}.parquet"
-        if path.exists():
-            done += 1
-            continue
+
+    def pull_one(day: dt.date) -> tuple[dt.date, int, int]:
         df = fetch_day(session, day, spots[day])
         if df.is_empty():
-            print(f"  {day}: EMPTY", flush=True)
-            continue
+            return day, 0, 0
+        path = raw_dir / f"date={day}.parquet"
         df.write_parquet(path)
-        bytes_new += path.stat().st_size
-        fetched += 1
-        if fetched in (5, 25) or fetched % 100 == 0:
-            proj_gb = bytes_new / max(fetched, 1) * len(days) / 1e9
-            print(
-                f"  [{i + 1}/{len(days)}] {day}: {df.height} rows; "
-                f"projected total ~{proj_gb:.1f} GB; free {free_gb(raw_dir):.0f} GB",
-                flush=True,
-            )
-            if free_gb(raw_dir) < MIN_FREE_GB:
-                raise VendorError(
-                    f"free disk below {MIN_FREE_GB} GB safety floor — pull halted (resumable)"
+        return day, df.height, path.stat().st_size
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for day, n_rows, n_bytes in pool.map(pull_one, todo):
+            if n_rows == 0:
+                print(f"  {day}: EMPTY", flush=True)
+                continue
+            bytes_new += n_bytes
+            fetched += 1
+            if fetched in (5, 25) or fetched % 100 == 0:
+                proj_gb = bytes_new / max(fetched, 1) * len(days) / 1e9
+                print(
+                    f"  [{done + fetched}/{len(days)}] {day}: {n_rows} rows; "
+                    f"projected total ~{proj_gb:.1f} GB; free {free_gb(raw_dir):.0f} GB",
+                    flush=True,
                 )
+                if free_gb(raw_dir) < MIN_FREE_GB:
+                    raise VendorError(
+                        f"free disk below {MIN_FREE_GB} GB safety floor — pull halted (resumable)"
+                    )
     manifest = {
         "dataset": "bars15_decade",
         "interval": INTERVAL,
