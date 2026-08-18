@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import urllib.parse
 
 import polars as pl
 import pytest
@@ -19,28 +18,45 @@ from options_strategy.data.vendors.theta_eod import (
     preview_sessions,
     probe_eod,
 )
-from options_strategy.data.vendors.thetadata import RateLimiter, TerminalClient
+from options_strategy.data.vendors.thetadata import ThetaSession
 
 CFG = EodPreviewConfig.load(DEFAULT_CONFIG)
 
-EOD_HEADER = (
-    "symbol,expiration,strike,right,open,high,low,close,volume,count,"
-    "bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition"
-)
+EOD_COLS = [
+    "symbol", "expiration", "strike", "right", "open", "high", "low", "close",
+    "volume", "count", "bid_size", "bid_exchange", "bid", "bid_condition",
+    "ask_size", "ask_exchange", "ask", "ask_condition",
+]
 
 
-def _eod_csv(rows: list[str]) -> str:
-    return "\n".join([EOD_HEADER, *rows])
+def eod_frame(rows: list[list]) -> pl.DataFrame:
+    return pl.DataFrame([dict(zip(EOD_COLS, r, strict=True)) for r in rows])
 
 
-class FakeFetch:
-    def __init__(self, responses: dict[str, str]) -> None:
-        self.responses = responses
-        self.urls: list[str] = []
+ROW_CALL = ["SPX", "2024-08-16", 5400.0, "call", 10.0, 12.0, 9.0, 11.0, 100, 5,
+            10, "C", 10.9, "R", 8, "C", 11.3, "R"]
+ROW_PUT = ["SPXW", "2024-08-09", 5350.0, "put", 20.0, 22.0, 19.0, 21.0, 50, 5,
+           10, "C", 20.9, "R", 8, "C", 21.3, "R"]
+ROW_FAR = ["SPXW", "2024-08-09", 9000.0, "call", 0.0, 0.0, 0.0, 0.0, 0, 0,
+           0, "C", 0.05, "R", 1, "C", 0.10, "R"]
 
-    def __call__(self, url: str) -> bytes:
-        self.urls.append(url)
-        return self.responses[urllib.parse.urlparse(url).path].encode()
+
+class FakeLib:
+    options_subscription = "FREE"
+    stock_subscription = "FREE"
+    index_subscription = None
+
+    def __init__(self, eod: pl.DataFrame) -> None:
+        self.eod = eod
+        self.calls: list[dict] = []
+
+    def option_history_eod(self, **kw):
+        self.calls.append(kw)
+        return self.eod
+
+
+def session_of(fake: FakeLib) -> ThetaSession:
+    return ThetaSession(fake, sleeper=lambda _s: None)
 
 
 # --- config + sessions ---------------------------------------------------
@@ -53,6 +69,7 @@ def test_config_covers_the_two_free_tier_windows() -> None:
     assert CFG.rate_limit_per_min <= 30  # free tier cap
     assert CFG.max_dte == 63
     assert CFG.roots == ("SPX", "SPXW")
+    assert CFG.creds_file.name == "creds.txt"
 
 
 def test_preview_sessions_are_trading_days_only() -> None:
@@ -60,67 +77,40 @@ def test_preview_sessions_are_trading_days_only() -> None:
     days = sessions["session"].to_list()
     assert dt.date(2024, 7, 26) in days
     assert dt.date(2024, 7, 27) not in days  # Saturday
-    assert dt.date(2026, 4, 3) not in days or True  # holiday handling left to calendar
-    # both windows contiguous in-range
     assert min(days) == dt.date(2024, 7, 26)
     assert max(days) == dt.date(2026, 7, 31)
 
 
-# --- rate limiter --------------------------------------------------------
+# --- eod request + probe -------------------------------------------------
 
 
-def test_rate_limiter_spaces_requests() -> None:
-    t = {"now": 0.0}
-    sleeps: list[float] = []
-
-    def clock() -> float:
-        return t["now"]
-
-    def sleeper(s: float) -> None:
-        sleeps.append(s)
-        t["now"] += s
-
-    rl = RateLimiter(30, clock=clock, sleeper=sleeper)
-    rl.wait()  # first call free
-    rl.wait()  # must wait the full 2s interval
-    t["now"] += 1.5
-    rl.wait()  # only 0.5s remaining
-    assert sleeps == [2.0, 0.5]
+def test_eod_history_call_arguments() -> None:
+    fake = FakeLib(eod_frame([ROW_CALL]))
+    session_of(fake).eod_history("SPXW", dt.date(2024, 8, 2), 63)
+    assert fake.calls[0] == {
+        "symbol": "SPXW",
+        "start_date": dt.date(2024, 8, 2),
+        "end_date": dt.date(2024, 8, 2),
+        "expiration": "*",
+        "strike": "*",
+        "right": "both",
+        "max_dte": 63,
+    }
 
 
-# --- eod endpoint --------------------------------------------------------
-
-
-def test_eod_history_request_params() -> None:
-    fake = FakeFetch({"/v3/option/history/eod": _eod_csv([])})
-    client = TerminalClient("http://x", fetch=fake)
-    client.eod_history("SPXW", dt.date(2024, 8, 2), 63)
-    q = urllib.parse.parse_qs(urllib.parse.urlparse(fake.urls[0]).query)
-    assert q["symbol"] == ["SPXW"]
-    assert q["expiration"] == ["*"]
-    assert q["start_date"] == ["20240802"]
-    assert q["end_date"] == ["20240802"]
-    assert q["max_dte"] == ["63"]
-    assert q["strike"] == ["*"]
-
-
-def test_probe_reports_nbbo_ok() -> None:
-    fake = FakeFetch(
-        {
-            "/v3/option/history/eod": _eod_csv(
-                ["SPX,2024-08-16,5400,call,10,12,9,11,100,5,10,C,10.9,R,8,C,11.3,R"]
-            )
-        }
-    )
-    result = probe_eod(CFG, TerminalClient("http://x", fetch=fake))
+def test_probe_reports_nbbo_ok_and_subscriptions() -> None:
+    result = probe_eod(CFG, session_of(FakeLib(eod_frame([ROW_CALL]))))
     assert result["nbbo_ok"] is True
     assert result["rows_with_live_nbbo"] == 1
+    assert result["subscriptions"]["options"] == "FREE"
 
 
 def test_probe_flags_missing_quotes() -> None:
-    no_quote_csv = "symbol,expiration,strike,right,close,volume\nSPX,2024-08-16,5400,call,11,100\n"
-    fake = FakeFetch({"/v3/option/history/eod": no_quote_csv})
-    result = probe_eod(CFG, TerminalClient("http://x", fetch=fake))
+    no_quotes = pl.DataFrame(
+        {"symbol": ["SPX"], "expiration": ["2024-08-16"], "strike": [5400.0],
+         "right": ["call"], "close": [11.0], "volume": [100]}
+    )
+    result = probe_eod(CFG, session_of(FakeLib(no_quotes)))
     assert result["nbbo_ok"] is False
     assert "bid" in result["missing_required"]
 
@@ -128,21 +118,8 @@ def test_probe_flags_missing_quotes() -> None:
 # --- mapping -------------------------------------------------------------
 
 
-def _raw_frame() -> pl.DataFrame:
-    return pl.read_csv(
-        _eod_csv(
-            [
-                "SPX,2024-08-16,5400,call,10,12,9,11,100,5,10,C,10.9,R,8,C,11.3,R",
-                "SPXW,2024-08-09,5350,put,20,22,19,21,50,5,10,C,20.9,R,8,C,21.3,R",
-                # outside +-15% of spot 5400 -> trimmed
-                "SPXW,2024-08-09,9000,call,0,0,0,0,0,0,0,C,0.05,R,1,C,0.10,R",
-            ]
-        ).encode()
-    ).with_columns(pl.lit("SPX").alias("root"))
-
-
 def test_to_option_quotes_maps_schema_settlement_and_trims() -> None:
-    raw = _raw_frame().with_columns(
+    raw = eod_frame([ROW_CALL, ROW_PUT, ROW_FAR]).with_columns(
         pl.when(pl.col("symbol") == "SPXW")
         .then(pl.lit("SPXW"))
         .otherwise(pl.lit("SPX"))
@@ -160,26 +137,34 @@ def test_to_option_quotes_maps_schema_settlement_and_trims() -> None:
     assert df["open_interest"].null_count() == df.height  # absent in vendor EOD -> null
 
 
+def test_to_option_quotes_accepts_date_typed_expiration() -> None:
+    raw = eod_frame([ROW_CALL]).with_columns(
+        pl.col("expiration").str.to_date("%Y-%m-%d"), pl.lit("SPX").alias("root")
+    )
+    df = _to_option_quotes(raw, dt.datetime(2024, 8, 2, 16, 0), spot=5400.0, strike_pct=0.15)
+    assert df["expiry_date"].to_list() == [dt.date(2024, 8, 16)]
+
+
 # --- fetch + world -------------------------------------------------------
 
 
-def _one_day_cfg(tmp_path) -> EodPreviewConfig:
+def _one_day_cfg(out_root, tmp_path) -> EodPreviewConfig:
     return EodPreviewConfig(
         dataset="test_eod",
-        out_root=tmp_path / "prev",
-        base_url="http://x",
+        out_root=out_root,
+        creds_file=CFG.creds_file,
         roots=("SPX", "SPXW"),
         max_dte=63,
         strike_window_pct=0.15,
         rate_limit_per_min=30,
         spot_source=tmp_path / "gspc.parquet",
-        # single trading day keeps the fake fetch simple
+        # single trading day keeps the fake simple
         windows=(Window("vix-spike-aug-2024", dt.date(2024, 8, 2), dt.date(2024, 8, 2)),),
     )
 
 
 def test_fetch_preview_and_build_world(tmp_path) -> None:
-    cfg = _one_day_cfg(tmp_path)
+    cfg = _one_day_cfg(tmp_path / "prev", tmp_path)
     pl.DataFrame(
         {
             "date": [dt.date(2024, 8, 2)],
@@ -191,29 +176,22 @@ def test_fetch_preview_and_build_world(tmp_path) -> None:
         }
     ).write_parquet(cfg.spot_source)
 
-    fake = FakeFetch(
-        {
-            "/v3/option/history/eod": _eod_csv(
-                [
-                    "SPX,2024-08-16,5300,call,10,12,9,11,100,5,10,C,10.9,R,8,C,11.3,R",
-                    "SPX,2024-08-16,5300,put,10,12,9,11,100,5,10,C,10.9,R,8,C,11.3,R",
-                ]
-            )
-        }
-    )
-    client = TerminalClient("http://x", fetch=fake)
+    call2 = list(ROW_CALL)
+    call2[3] = "put"
+    fake = FakeLib(eod_frame([ROW_CALL, call2]))
+    session = session_of(fake)
 
-    manifest = fetch_preview(cfg, client=client)
+    manifest = fetch_preview(cfg, session=session)
     assert manifest["n_sessions"] == 1
     assert manifest["total_raw_rows"] == 4  # 2 rows x 2 roots
     assert manifest["empty_sessions"] == []
     raw_file = cfg.out_root / "raw" / "date=2024-08-02.parquet"
     assert raw_file.exists()
 
-    # resume: no new quote requests on second run
-    n = len(fake.urls)
-    fetch_preview(cfg, client=client)
-    assert len(fake.urls) == n
+    # resume: no new eod requests on second run
+    n = len(fake.calls)
+    fetch_preview(cfg, session=session)
+    assert len(fake.calls) == n
 
     world_manifest = build_world(cfg, "theta_eod_preview_vTEST")
     world = cfg.out_root / "world"
@@ -229,6 +207,6 @@ def test_fetch_preview_and_build_world(tmp_path) -> None:
 
 
 def test_build_world_requires_raw(tmp_path) -> None:
-    cfg = _one_day_cfg(tmp_path)
+    cfg = _one_day_cfg(tmp_path / "prev", tmp_path)
     with pytest.raises(FileNotFoundError, match="no raw pulls"):
         build_world(cfg, "v")

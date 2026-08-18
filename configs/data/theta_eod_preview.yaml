@@ -11,8 +11,11 @@ vendor: thetadata
 dataset: eod_preview
 out_root: data/raw/theta/eod_preview
 
-terminal:
-  base_url: "http://127.0.0.1:25503"
+# Official python-library transport (gRPC, no Theta Terminal). The creds file
+# (email line 1, password line 2) is read by the vendor library only — this
+# codebase never reads its contents.
+auth:
+  creds_file: ~/theta/creds.txt
 
 roots: [SPX, SPXW]
 max_dte: 63                  # server-side filter on every request

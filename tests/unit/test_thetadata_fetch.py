@@ -1,24 +1,84 @@
-"""Offline tests for the ThetaData acquisition module (no network, no vendor data)."""
+"""Offline tests for the ThetaData acquisition module (no network, no vendor data).
+
+The fake below mimics the official ``thetadata.ThetaClient`` surface the
+adapter uses (three methods, polars frames, NoDataFoundError on empties).
+"""
 
 from __future__ import annotations
 
 import datetime as dt
-import json
-import urllib.parse
 
 import polars as pl
 import pytest
 
 from options_strategy.data.vendors.thetadata import (
     DEFAULT_CONFIG,
+    RateLimiter,
     SliceConfig,
-    TerminalClient,
+    ThetaSession,
+    VendorError,
+    ensure_expiration_date,
     expiries_in_scope,
     fetch_sample_date,
     fetch_slice,
 )
 
 CFG = SliceConfig.load(DEFAULT_CONFIG)
+
+
+class NoDataFoundError(Exception):
+    """Same class NAME as the vendor library's empty-result error."""
+
+
+def quote_frame(rows: list[dict]) -> pl.DataFrame:
+    schema = {
+        "symbol": pl.Utf8, "expiration": pl.Utf8, "strike": pl.Float64, "right": pl.Utf8,
+        "timestamp": pl.Utf8, "bid_size": pl.Int64, "bid_exchange": pl.Utf8,
+        "bid": pl.Float64, "bid_condition": pl.Utf8, "ask_size": pl.Int64,
+        "ask_exchange": pl.Utf8, "ask": pl.Float64, "ask_condition": pl.Utf8,
+    }
+    return pl.DataFrame(rows, schema=schema)
+
+
+def qrow(exp: str, strike: float, right: str, bid: float, ask: float) -> dict:
+    return {
+        "symbol": "SPXW", "expiration": exp, "strike": strike, "right": right,
+        "timestamp": "2017-01-06T15:45:00", "bid_size": 10, "bid_exchange": "C",
+        "bid": bid, "bid_condition": "R", "ask_size": 8, "ask_exchange": "C",
+        "ask": ask, "ask_condition": "R",
+    }
+
+
+class FakeLib:
+    """Records every call; serves canned frames keyed by method name."""
+
+    options_subscription = "STANDARD"
+    stock_subscription = "FREE"
+    index_subscription = None
+
+    def __init__(self, responses: dict[str, pl.DataFrame | Exception]) -> None:
+        self.responses = responses
+        self.calls: list[tuple[str, dict]] = []
+
+    def _serve(self, method: str, kw: dict):
+        self.calls.append((method, kw))
+        resp = self.responses[method]
+        if isinstance(resp, Exception):
+            raise resp
+        return resp
+
+    def option_list_expirations(self, **kw):
+        return self._serve("option_list_expirations", kw)
+
+    def option_at_time_quote(self, **kw):
+        return self._serve("option_at_time_quote", kw)
+
+    def option_history_eod(self, **kw):
+        return self._serve("option_history_eod", kw)
+
+
+def session_of(fake: FakeLib) -> ThetaSession:
+    return ThetaSession(fake, sleeper=lambda _s: None)
 
 
 # --- spec config ---------------------------------------------------------
@@ -55,6 +115,7 @@ def test_spec_rows_are_sane() -> None:
     assert CFG.roots == ("SPX", "SPXW")
     assert CFG.max_dte == 63
     assert CFG.primary_snapshot in CFG.snapshot_times
+    assert CFG.creds_file.name == "creds.txt"
 
 
 def test_all_sample_dates_within_standard_tier_history() -> None:
@@ -77,67 +138,80 @@ def test_expiries_in_scope_calendar_dte_bounds() -> None:
     assert expiries_in_scope(exps, d, 63) == [dt.date(2020, 3, 13), dt.date(2020, 5, 8)]
 
 
-# --- client --------------------------------------------------------------
+# --- session wrapper -----------------------------------------------------
 
 
-class FakeFetch:
-    """Records URLs; serves canned CSV per path."""
-
-    def __init__(self, responses: dict[str, str]) -> None:
-        self.responses = responses
-        self.urls: list[str] = []
-
-    def __call__(self, url: str) -> bytes:
-        self.urls.append(url)
-        parsed = urllib.parse.urlparse(url)
-        return self.responses[parsed.path].encode()
-
-
-QUOTE_HEADER = (
-    "symbol,expiration,strike,right,timestamp,bid_size,bid_exchange,bid,"
-    "bid_condition,ask_size,ask_exchange,ask,ask_condition"
-)
-
-
-def _quote_csv(rows: list[str]) -> str:
-    return "\n".join([QUOTE_HEADER, *rows])
-
-
-def test_at_time_quote_request_and_parse() -> None:
-    fake = FakeFetch(
-        {
-            "/v3/option/at_time/quote": _quote_csv(
-                ["SPXW,2017-01-13,2270,call,2017-01-06T15:45:00,10,C,12.5,R,8,C,13.1,R"]
-            )
-        }
+def test_at_time_quote_call_arguments() -> None:
+    frame = quote_frame([qrow("2017-01-13", 2270, "call", 12.5, 13.1)])
+    fake = FakeLib({"option_at_time_quote": frame})
+    df = session_of(fake).at_time_quote(
+        "SPXW", dt.date(2017, 1, 13), dt.date(2017, 1, 6), "15:45:00"
     )
-    client = TerminalClient("http://127.0.0.1:25503", fetch=fake)
-    df = client.at_time_quote("SPXW", dt.date(2017, 1, 13), dt.date(2017, 1, 6), "15:45:00")
     assert df.height == 1
-    q = urllib.parse.parse_qs(urllib.parse.urlparse(fake.urls[0]).query)
-    assert q["symbol"] == ["SPXW"]
-    assert q["expiration"] == ["20170113"]
-    assert q["start_date"] == ["20170106"]
-    assert q["end_date"] == ["20170106"]
-    assert q["time_of_day"] == ["15:45:00.000"]
-    assert q["strike"] == ["*"]
-    assert q["right"] == ["both"]
-    assert q["format"] == ["csv"]
+    method, kw = fake.calls[0]
+    assert method == "option_at_time_quote"
+    assert kw == {
+        "symbol": "SPXW",
+        "start_date": dt.date(2017, 1, 6),
+        "end_date": dt.date(2017, 1, 6),
+        "time_of_day": "15:45:00",
+        "expiration": dt.date(2017, 1, 13),
+        "strike": "*",
+        "right": "both",
+    }
 
 
-def test_empty_body_is_empty_frame_not_error() -> None:
-    fake = FakeFetch({"/v3/option/at_time/quote": ""})
-    client = TerminalClient("http://x", fetch=fake)
-    df = client.at_time_quote("SPX", dt.date(2020, 3, 13), dt.date(2020, 3, 6), "10:00:00")
+def test_no_data_error_is_empty_frame_not_error() -> None:
+    fake = FakeLib({"option_at_time_quote": NoDataFoundError("no data")})
+    df = session_of(fake).at_time_quote(
+        "SPX", dt.date(2020, 3, 13), dt.date(2020, 3, 6), "10:00:00"
+    )
     assert df.is_empty()
 
 
-def test_list_expirations_parses_and_sorts() -> None:
-    fake = FakeFetch(
-        {"/v3/option/list/expirations": "symbol,expiration\nSPXW,2017-01-20\nSPXW,2017-01-13\n"}
+def test_transient_errors_retry_then_raise() -> None:
+    fake = FakeLib({"option_list_expirations": RuntimeError("grpc unavailable")})
+    with pytest.raises(VendorError, match="failed after 3 tries"):
+        session_of(fake).list_expirations("SPXW")
+    assert len(fake.calls) == 3
+
+
+def test_list_expirations_parses_sorts_dedupes() -> None:
+    fake = FakeLib(
+        {
+            "option_list_expirations": pl.DataFrame(
+                {"symbol": ["SPXW"] * 3, "expiration": ["2017-01-20", "2017-01-13", "2017-01-20"]}
+            )
+        }
     )
-    client = TerminalClient("http://x", fetch=fake)
-    assert client.list_expirations("SPXW") == [dt.date(2017, 1, 13), dt.date(2017, 1, 20)]
+    assert session_of(fake).list_expirations("SPXW") == [dt.date(2017, 1, 13), dt.date(2017, 1, 20)]
+
+
+def test_ensure_expiration_date_handles_str_and_date() -> None:
+    as_str = pl.DataFrame({"expiration": ["2017-01-13", "20170120"]})
+    out = ensure_expiration_date(as_str)
+    assert out["expiration"].to_list() == [dt.date(2017, 1, 13), dt.date(2017, 1, 20)]
+    as_date = pl.DataFrame({"expiration": [dt.date(2017, 1, 13)]})
+    assert ensure_expiration_date(as_date)["expiration"].dtype == pl.Date
+
+
+def test_rate_limiter_spaces_requests() -> None:
+    t = {"now": 0.0}
+    sleeps: list[float] = []
+
+    def clock() -> float:
+        return t["now"]
+
+    def sleeper(s: float) -> None:
+        sleeps.append(s)
+        t["now"] += s
+
+    rl = RateLimiter(30, clock=clock, sleeper=sleeper)
+    rl.wait()  # first call free
+    rl.wait()  # must wait the full 2s interval
+    t["now"] += 1.5
+    rl.wait()  # only 0.5s remaining
+    assert sleeps == [2.0, 0.5]
 
 
 # --- fetch + persist -----------------------------------------------------
@@ -147,56 +221,58 @@ def _mini_cfg(out_root) -> SliceConfig:
     return SliceConfig(
         dataset="test_slice",
         out_root=out_root,
-        base_url="http://x",
+        creds_file=CFG.creds_file,
         roots=("SPXW",),
         max_dte=63,
         snapshot_times=("15:45:00",),
         primary_snapshot="15:45:00",
         strike_pad_points=50.0,
+        rate_limit_per_min=28,
         samples=(CFG.samples[0],),  # 2017-01-06, strikes 2185-2370
     )
 
 
-def _mini_client() -> tuple[TerminalClient, FakeFetch]:
-    fake = FakeFetch(
+def _mini_fake() -> FakeLib:
+    return FakeLib(
         {
-            "/v3/option/list/expirations": "symbol,expiration\nSPXW,2017-01-13\nSPXW,2017-06-30\n",
-            "/v3/option/at_time/quote": _quote_csv(
+            "option_list_expirations": pl.DataFrame(
+                {"symbol": ["SPXW", "SPXW"], "expiration": ["2017-01-13", "2017-06-30"]}
+            ),
+            "option_at_time_quote": quote_frame(
                 [
-                    # inside window
-                    "SPXW,2017-01-13,2270,call,2017-01-06T15:45:00,10,C,12.5,R,8,C,13.1,R",
-                    "SPXW,2017-01-13,2270,put,2017-01-06T15:45:00,10,C,11.0,R,8,C,11.6,R",
-                    # within the 50-pt pad below strike_lo=2185
-                    "SPXW,2017-01-13,2150,put,2017-01-06T15:45:00,5,C,1.0,R,5,C,1.3,R",
-                    # far outside window + pad: dropped
-                    "SPXW,2017-01-13,1500,put,2017-01-06T15:45:00,5,C,0.1,R,5,C,0.2,R",
+                    qrow("2017-01-13", 2270, "call", 12.5, 13.1),  # inside window
+                    qrow("2017-01-13", 2270, "put", 11.0, 11.6),
+                    qrow("2017-01-13", 2150, "put", 1.0, 1.3),  # within the 50-pt pad
+                    qrow("2017-01-13", 1500, "put", 0.1, 0.2),  # far outside: dropped
                 ]
             ),
         }
     )
-    return TerminalClient("http://x", fetch=fake), fake
 
 
 def test_fetch_sample_date_filters_and_annotates() -> None:
-    client, fake = _mini_client()
+    fake = _mini_fake()
+    session = session_of(fake)
     cfg = _mini_cfg(None)
-    exps = {"SPXW": client.list_expirations("SPXW")}
-    df = fetch_sample_date(client, cfg, cfg.samples[0], exps)
+    exps = {"SPXW": session.list_expirations("SPXW")}
+    df = fetch_sample_date(session, cfg, cfg.samples[0], exps)
     # only the 2017-01-13 expiry is <= 63 DTE; 1500-strike row filtered out
     assert df["strike"].to_list() == [2150.0, 2270.0, 2270.0]
     assert set(df["root"].to_list()) == {"SPXW"}
     assert df["entry_date"].unique().to_list() == [dt.date(2017, 1, 6)]
     assert df["expiration"].dtype == pl.Date
     assert df["regime_window"].unique().to_list() == ["calm-2017"]
-    # one quote request (1 root x 1 expiry in scope x 1 snapshot) + 1 listing
-    quote_calls = [u for u in fake.urls if "at_time" in u]
-    assert len(quote_calls) == 1
+    quote_calls = [c for c in fake.calls if c[0] == "option_at_time_quote"]
+    assert len(quote_calls) == 1  # 1 root x 1 expiry in scope x 1 snapshot
 
 
 def test_fetch_slice_writes_parquet_manifest_and_resumes(tmp_path) -> None:
+    import json
+
     cfg = _mini_cfg(tmp_path / "slice")
-    client, fake = _mini_client()
-    manifest = fetch_slice(cfg, client=client)
+    fake = _mini_fake()
+    session = session_of(fake)
+    manifest = fetch_slice(cfg, session=session)
     out = cfg.out_root / "quotes" / "2017-01-06.parquet"
     assert out.exists()
     assert manifest["total_rows"] == 3
@@ -208,19 +284,21 @@ def test_fetch_slice_writes_parquet_manifest_and_resumes(tmp_path) -> None:
     on_disk = json.loads((cfg.out_root / "manifest.json").read_text())
     assert on_disk["total_rows"] == 3
     # resume: second run must not refetch quotes for the existing date
-    n_quote_calls = len([u for u in fake.urls if "at_time" in u])
-    fetch_slice(cfg, client=client)
-    assert len([u for u in fake.urls if "at_time" in u]) == n_quote_calls
+    n_quote_calls = len([c for c in fake.calls if c[0] == "option_at_time_quote"])
+    fetch_slice(cfg, session=session)
+    assert len([c for c in fake.calls if c[0] == "option_at_time_quote"]) == n_quote_calls
 
 
 def test_missing_columns_raise() -> None:
-    fake = FakeFetch(
+    fake = FakeLib(
         {
-            "/v3/option/list/expirations": "symbol,expiration\nSPXW,2017-01-13\n",
-            "/v3/option/at_time/quote": "symbol,strike\nSPXW,2270\n",
+            "option_list_expirations": pl.DataFrame(
+                {"symbol": ["SPXW"], "expiration": ["2017-01-13"]}
+            ),
+            "option_at_time_quote": pl.DataFrame({"symbol": ["SPXW"], "strike": [2270.0]}),
         }
     )
-    client = TerminalClient("http://x", fetch=fake)
+    session = session_of(fake)
     cfg = _mini_cfg(None)
-    with pytest.raises(Exception, match="missing columns"):
-        fetch_sample_date(client, cfg, cfg.samples[0], {"SPXW": [dt.date(2017, 1, 13)]})
+    with pytest.raises(VendorError, match="missing columns"):
+        fetch_sample_date(session, cfg, cfg.samples[0], {"SPXW": [dt.date(2017, 1, 13)]})

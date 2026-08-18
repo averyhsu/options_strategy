@@ -1,19 +1,24 @@
-"""ThetaData acquisition for the real-chain credit check slice.
+"""ThetaData acquisition via the OFFICIAL Python library (no Theta Terminal).
 
-Pulls SPX + SPXW NBBO quote snapshots from a locally running Theta Terminal
-v3 (the vendor's Java gateway; it holds the account credentials — this module
-only ever talks to 127.0.0.1). Sample plan comes from a YAML config
-(configs/data/thetadata_credit_check_slice.yaml), transcribed from the
-mini-purchase specification in reports/candle_study.md.
+Transport: ``thetadata.ThetaClient`` (pip ``thetadata>=1.0.10``) — authenticates
+over HTTPS and streams data over gRPC directly from the vendor
+(user directive 2026-08-17; replaces the Theta Terminal v3 REST gateway whose
+bootstrap backend proved fragile). Credentials come from a creds file
+(email line 1, password line 2) whose PATH is configured here; its contents
+are never read, logged, or committed by this codebase.
 
-Requires an Options STANDARD subscription or better: the at_time snapshot
-endpoint is Standard+, and Standard's options history starts 2016-01-01
-(covers the 2017 sample dates).
+This module owns the shared plumbing plus the paid-month at_time slice
+fetcher (spec: reports/candle_study.md mini-purchase table, 51 sample dates).
+The free-tier EOD preview lives in theta_eod.py.
+
+Requires Options STANDARD or better for the at_time slice: at_time endpoints
+are Standard+, and Standard's options history starts 2016-01-01 (covers the
+2017 sample dates). ``check_access`` verifies both before a full pull.
 
 Licensed vendor data: all output lands under data/raw/ (gitignored — the
 repo is public; raw vendor data is never committed).
 
-Usage (terminal must be running first):
+Usage:
 
     python -m options_strategy.data.vendors.thetadata --check
     python -m options_strategy.data.vendors.thetadata          # full pull, resumable
@@ -27,12 +32,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import io
 import json
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,22 +43,13 @@ import yaml
 
 DEFAULT_CONFIG = "configs/data/thetadata_credit_check_slice.yaml"
 
-# v3 at_time/quote response columns we require, with target dtypes.
-QUOTE_SCHEMA = {
-    "symbol": pl.Utf8,
-    "expiration": pl.Utf8,
-    "strike": pl.Float64,
-    "right": pl.Utf8,
-    "timestamp": pl.Utf8,
-    "bid_size": pl.Int64,
-    "bid_exchange": pl.Utf8,
-    "bid": pl.Float64,
-    "bid_condition": pl.Utf8,
-    "ask_size": pl.Int64,
-    "ask_exchange": pl.Utf8,
-    "ask": pl.Float64,
-    "ask_condition": pl.Utf8,
-}
+# at_time quote response columns the slice cannot do without (per the v3 API
+# the library mirrors); extra vendor columns are preserved in the raw layer.
+QUOTE_REQUIRED = ["expiration", "strike", "right", "bid", "bid_size", "ask", "ask_size"]
+
+
+class VendorError(RuntimeError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -74,12 +66,13 @@ class SampleDate:
 class SliceConfig:
     dataset: str
     out_root: Path
-    base_url: str
+    creds_file: Path
     roots: tuple[str, ...]
     max_dte: int
     snapshot_times: tuple[str, ...]
     primary_snapshot: str
     strike_pad_points: float
+    rate_limit_per_min: int
     samples: tuple[SampleDate, ...]
 
     @staticmethod
@@ -99,28 +92,23 @@ class SliceConfig:
         return SliceConfig(
             dataset=raw["dataset"],
             out_root=Path(raw["out_root"]),
-            base_url=raw["terminal"]["base_url"].rstrip("/"),
+            creds_file=Path(raw["auth"]["creds_file"]).expanduser(),
             roots=tuple(raw["roots"]),
             max_dte=int(raw["max_dte"]),
             snapshot_times=tuple(raw["snapshot_times"]),
             primary_snapshot=raw["primary_snapshot"],
             strike_pad_points=float(raw["strike_pad_points"]),
+            rate_limit_per_min=int(raw.get("rate_limit_per_min", 28)),
             samples=samples,
         )
 
 
 def _as_date(v: object) -> dt.date:
+    if isinstance(v, dt.datetime):
+        return v.date()
     if isinstance(v, dt.date):
         return v
     return dt.date.fromisoformat(str(v))
-
-
-def _yyyymmdd(d: dt.date) -> str:
-    return d.strftime("%Y%m%d")
-
-
-class TerminalError(RuntimeError):
-    pass
 
 
 class RateLimiter:
@@ -150,114 +138,122 @@ class RateLimiter:
         self._last = now
 
 
-class TerminalClient:
-    """Thin HTTP client for the local Theta Terminal v3.
+def make_library_client(creds_file: Path):
+    """Construct the official client (polars frames). Lazy import so the
+    engine and offline tests never need the vendor package installed."""
+    from thetadata import ThetaClient
 
-    ``fetch`` is injectable so tests never touch the network.
+    return ThetaClient(creds_file=str(creds_file), dataframe_type="polars")
+
+
+class ThetaSession:
+    """Rate-limited, retrying wrapper around the official ThetaClient.
+
+    ``client`` is injectable so tests use a fake with the same three methods.
+    NoDataFoundError is normalized to an empty frame (an expiry that was not
+    listed on a historical date is data absence, not an error).
     """
 
     def __init__(
         self,
-        base_url: str,
-        fetch: Callable[[str], bytes] | None = None,
+        client,
+        limiter: RateLimiter | None = None,
         retries: int = 3,
         backoff_s: float = 2.0,
-        limiter: RateLimiter | None = None,
+        sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
-        self._fetch = fetch if fetch is not None else self._http_get
+        self.client = client
+        self.limiter = limiter
         self.retries = retries
         self.backoff_s = backoff_s
-        self.limiter = limiter
+        self._sleep = sleeper
 
-    @staticmethod
-    def _http_get(url: str) -> bytes:
-        req = urllib.request.Request(url, headers={"Accept": "text/csv"})
-        with urllib.request.urlopen(req, timeout=180) as resp:
-            return resp.read()
-
-    def _get_csv(self, path: str, params: dict[str, str]) -> pl.DataFrame:
+    def _call(self, method: str, **kwargs) -> pl.DataFrame:
         if self.limiter is not None:
             self.limiter.wait()
-        query = urllib.parse.urlencode({**params, "format": "csv"})
-        url = f"{self.base_url}{path}?{query}"
         last_err: Exception | None = None
         for attempt in range(self.retries):
             try:
-                raw = self._fetch(url)
-                if not raw.strip():
+                out = getattr(self.client, method)(**kwargs)
+                return out if isinstance(out, pl.DataFrame) else pl.DataFrame(out)
+            except Exception as e:  # vendor lib: NoDataFoundError / grpc.RpcError
+                name = type(e).__name__
+                if name == "NoDataFoundError":
                     return pl.DataFrame()
-                return pl.read_csv(io.BytesIO(raw), infer_schema_length=10_000)
-            except urllib.error.HTTPError as e:
-                # 472 is the vendor's NO_DATA; treat as empty, not an error.
-                if e.code == 472:
-                    return pl.DataFrame()
+                if name == "AuthenticationError":
+                    raise VendorError(f"authentication failed: {e}") from e
                 last_err = e
-            except (urllib.error.URLError, TimeoutError, OSError) as e:
-                last_err = e
-            time.sleep(self.backoff_s * (attempt + 1))
-        raise TerminalError(
-            f"terminal request failed after {self.retries} tries: {url}\n{last_err}"
-        )
+            self._sleep(self.backoff_s * (attempt + 1))
+        raise VendorError(f"{method}({kwargs}) failed after {self.retries} tries: {last_err}")
+
+    def subscriptions(self) -> dict:
+        """Access levels reported by the auth handshake (tier verification)."""
+        return {
+            "options": getattr(self.client, "options_subscription", None),
+            "stock": getattr(self.client, "stock_subscription", None),
+            "index": getattr(self.client, "index_subscription", None),
+        }
 
     def list_expirations(self, root: str) -> list[dt.date]:
-        df = self._get_csv("/v3/option/list/expirations", {"symbol": root})
+        df = self._call("option_list_expirations", symbol=root)
         if df.is_empty():
             return []
         col = "expiration" if "expiration" in df.columns else df.columns[-1]
-        return sorted(_as_date(v) for v in df[col].unique().to_list())
+        return sorted({_as_date(v) for v in df[col].to_list()})
 
     def eod_history(self, root: str, date: dt.date, max_dte: int) -> pl.DataFrame:
         """Free-tier EOD report (OHLC + closing NBBO) for every contract of a
         root on one session, all expiries within max_dte. One request per
         (root, date) keeps the server-side max_dte filter unambiguous."""
-        return self._get_csv(
-            "/v3/option/history/eod",
-            {
-                "symbol": root,
-                "expiration": "*",
-                "start_date": _yyyymmdd(date),
-                "end_date": _yyyymmdd(date),
-                "max_dte": str(max_dte),
-                "strike": "*",
-                "right": "both",
-            },
+        return self._call(
+            "option_history_eod",
+            symbol=root,
+            start_date=date,
+            end_date=date,
+            expiration="*",
+            strike="*",
+            right="both",
+            max_dte=max_dte,
         )
 
     def at_time_quote(
         self, root: str, expiration: dt.date, date: dt.date, time_of_day: str
     ) -> pl.DataFrame:
-        return self._get_csv(
-            "/v3/option/at_time/quote",
-            {
-                "symbol": root,
-                "expiration": _yyyymmdd(expiration),
-                "start_date": _yyyymmdd(date),
-                "end_date": _yyyymmdd(date),
-                "time_of_day": f"{time_of_day}.000",
-                "strike": "*",
-                "right": "both",
-            },
+        """NBBO snapshot at a minute-boundary ET time (Standard+)."""
+        return self._call(
+            "option_at_time_quote",
+            symbol=root,
+            start_date=date,
+            end_date=date,
+            time_of_day=time_of_day,
+            expiration=expiration,
+            strike="*",
+            right="both",
         )
 
 
-def _normalize(df: pl.DataFrame, root: str, snap_time: str, sample: SampleDate) -> pl.DataFrame:
-    missing = [c for c in QUOTE_SCHEMA if c not in df.columns]
-    if missing:
-        raise TerminalError(f"quote response missing columns {missing}; got {df.columns}")
-    return (
-        df.select(
-            [pl.col(c).cast(t, strict=False) for c, t in QUOTE_SCHEMA.items()]
-        )
-        .with_columns(
-            pl.col("expiration").str.replace_all("-", "").str.to_date("%Y%m%d"),
-            pl.lit(root).alias("root"),
-            pl.lit(sample.entry_date).alias("entry_date"),
-            pl.lit(snap_time).alias("snapshot_et"),
-            pl.lit(sample.window).alias("regime_window"),
-            pl.lit(sample.ema_state).alias("ema_state"),
-        )
+def make_session(creds_file: Path, rate_limit_per_min: int) -> ThetaSession:
+    return ThetaSession(
+        make_library_client(creds_file), limiter=RateLimiter(rate_limit_per_min)
     )
+
+
+def ensure_expiration_date(df: pl.DataFrame) -> pl.DataFrame:
+    """Vendor frames may carry expiration as Date, Datetime, or string."""
+    dtype = df.schema["expiration"]
+    if dtype == pl.Date:
+        return df
+    if isinstance(dtype, pl.Datetime):
+        return df.with_columns(pl.col("expiration").dt.date())
+    return df.with_columns(
+        pl.col("expiration").cast(pl.Utf8).str.replace_all("-", "").str.to_date("%Y%m%d")
+    )
+
+
+def require_columns(df: pl.DataFrame, required: list[str], what: str) -> None:
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise VendorError(f"{what} response missing columns {missing}; got {df.columns}")
 
 
 def expiries_in_scope(all_exps: list[dt.date], sample_date: dt.date, max_dte: int) -> list[dt.date]:
@@ -265,8 +261,20 @@ def expiries_in_scope(all_exps: list[dt.date], sample_date: dt.date, max_dte: in
     return [e for e in all_exps if 0 < (e - sample_date).days <= max_dte]
 
 
+def _normalize(df: pl.DataFrame, root: str, snap_time: str, sample: SampleDate) -> pl.DataFrame:
+    require_columns(df, QUOTE_REQUIRED, "at_time quote")
+    return ensure_expiration_date(df).with_columns(
+        pl.col("strike").cast(pl.Float64),
+        pl.lit(root).alias("root"),
+        pl.lit(sample.entry_date).alias("entry_date"),
+        pl.lit(snap_time).alias("snapshot_et"),
+        pl.lit(sample.window).alias("regime_window"),
+        pl.lit(sample.ema_state).alias("ema_state"),
+    )
+
+
 def fetch_sample_date(
-    client: TerminalClient,
+    session: ThetaSession,
     cfg: SliceConfig,
     sample: SampleDate,
     exps_by_root: dict[str, list[dt.date]],
@@ -277,7 +285,7 @@ def fetch_sample_date(
     for root in cfg.roots:
         for exp in expiries_in_scope(exps_by_root[root], sample.entry_date, cfg.max_dte):
             for snap_time in cfg.snapshot_times:
-                df = client.at_time_quote(root, exp, sample.entry_date, snap_time)
+                df = session.at_time_quote(root, exp, sample.entry_date, snap_time)
                 if df.is_empty():
                     continue
                 frames.append(
@@ -287,7 +295,7 @@ def fetch_sample_date(
                 )
     if not frames:
         return pl.DataFrame()
-    return pl.concat(frames, how="vertical").sort(
+    return pl.concat(frames, how="diagonal").sort(
         ["root", "expiration", "strike", "right", "snapshot_et"]
     )
 
@@ -314,41 +322,45 @@ def _date_stats(df: pl.DataFrame, sample: SampleDate) -> dict:
     }
 
 
-def check_terminal(cfg: SliceConfig, client: TerminalClient | None = None) -> dict:
-    """Reachability + subscription sanity: can we see 2017 SPX quote history?"""
-    client = client or TerminalClient(cfg.base_url)
-    out: dict = {"base_url": cfg.base_url}
-    exps = client.list_expirations("SPXW")
+def check_access(cfg: SliceConfig, session: ThetaSession | None = None) -> dict:
+    """Auth + tier + history-depth sanity for the paid-month slice: report the
+    subscriptions the auth handshake grants, and probe a 2017 quote (Standard
+    history starts 2016-01-01; Value would return nothing there)."""
+    session = session or make_session(cfg.creds_file, cfg.rate_limit_per_min)
+    out: dict = {"subscriptions": session.subscriptions()}
+    exps = session.list_expirations("SPXW")
     out["spxw_expirations_listed"] = len(exps)
     if not exps:
-        raise TerminalError("terminal reachable but listed no SPXW expirations")
+        raise VendorError("authenticated but no SPXW expirations listed")
     earliest = cfg.samples[0]
-    probe_exps = expiries_in_scope(client.list_expirations("SPX"), earliest.entry_date, 40)
+    probe_exps = expiries_in_scope(session.list_expirations("SPX"), earliest.entry_date, 40)
     out["probe_date"] = str(earliest.entry_date)
     probe_rows = 0
     for exp in probe_exps[:3]:
-        snap = client.at_time_quote("SPX", exp, earliest.entry_date, cfg.primary_snapshot)
-        probe_rows += snap.height
+        probe_rows += session.at_time_quote(
+            "SPX", exp, earliest.entry_date, cfg.primary_snapshot
+        ).height
     out["probe_rows_2017"] = probe_rows
     out["history_ok"] = probe_rows > 0
     if probe_rows == 0:
         out["note"] = (
-            "No 2017 quote rows returned — subscription tier likely below Options "
-            "STANDARD (Value history starts 2020-01-01). Upgrade before the full pull."
+            "No 2017 quote rows — subscription below Options STANDARD "
+            "(Value history starts 2020-01-01) or at_time not included. "
+            "Upgrade before the full slice pull."
         )
     return out
 
 
 def fetch_slice(
-    cfg: SliceConfig, client: TerminalClient | None = None, force: bool = False
+    cfg: SliceConfig, session: ThetaSession | None = None, force: bool = False
 ) -> dict:
-    client = client or TerminalClient(cfg.base_url)
+    session = session or make_session(cfg.creds_file, cfg.rate_limit_per_min)
     out_dir = cfg.out_root / "quotes"
     out_dir.mkdir(parents=True, exist_ok=True)
-    exps_by_root = {root: client.list_expirations(root) for root in cfg.roots}
+    exps_by_root = {root: session.list_expirations(root) for root in cfg.roots}
     for root, exps in exps_by_root.items():
         if not exps:
-            raise TerminalError(f"no expirations listed for root {root}")
+            raise VendorError(f"no expirations listed for root {root}")
 
     per_date: list[dict] = []
     for sample in cfg.samples:
@@ -356,7 +368,7 @@ def fetch_slice(
         if path.exists() and not force:
             per_date.append(_date_stats(pl.read_parquet(path), sample))
             continue
-        df = fetch_sample_date(client, cfg, sample, exps_by_root)
+        df = fetch_sample_date(session, cfg, sample, exps_by_root)
         stats = _date_stats(df, sample)
         if df.is_empty():
             # Leave no file so a rerun retries this date; record the gap.
@@ -370,9 +382,9 @@ def fetch_slice(
     empty_dates = [s["entry_date"] for s in per_date if s["rows"] == 0]
     manifest = {
         "vendor": "thetadata",
+        "transport": "official python library (gRPC, no terminal)",
         "dataset": cfg.dataset,
         "fetched_at_utc": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
-        "terminal": cfg.base_url,
         "spec_source": "reports/candle_study.md mini-purchase specification (51 sample dates)",
         "license_note": (
             "Licensed ThetaData subscription data. data/raw/ is gitignored; "
@@ -397,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default=DEFAULT_CONFIG)
     ap.add_argument(
-        "--check", action="store_true", help="terminal + subscription sanity check only"
+        "--check", action="store_true", help="auth + tier + history-depth sanity check only"
     )
     ap.add_argument(
         "--force", action="store_true", help="refetch dates that already have parquet files"
@@ -406,13 +418,15 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = SliceConfig.load(args.config)
     if args.check:
-        print(json.dumps(check_terminal(cfg), indent=2))
+        print(json.dumps(check_access(cfg), indent=2, default=str))
         return 0
-    manifest = fetch_slice(cfg, force=args.force)
+    manifest = fetch_slice(cfg)
     print(json.dumps({k: v for k, v in manifest.items() if k != "per_date"}, indent=2))
     if manifest["empty_dates"]:
-        print(f"WARNING: {len(manifest['empty_dates'])} sample dates returned no rows: "
-              f"{manifest['empty_dates']}")
+        print(
+            f"WARNING: {len(manifest['empty_dates'])} sample dates returned no rows: "
+            f"{manifest['empty_dates']}"
+        )
         return 1
     return 0
 

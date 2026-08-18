@@ -7,6 +7,9 @@ within +-15% of that session's ^GSPC close (client-side trim against the free
 candle data), and packages them into the standard world layout so
 ``options_strategy qa`` runs unchanged.
 
+Transport: the official ``thetadata`` Python library (direct gRPC — no Theta
+Terminal); see vendors/thetadata.py for the session wrapper and auth notes.
+
 Layout under data/raw/theta/eod_preview/ (gitignored — licensed data):
     raw/date=YYYY-MM-DD.parquet     vendor columns verbatim (+ root, window)
     world/manifest.json             data_version + provenance
@@ -14,7 +17,7 @@ Layout under data/raw/theta/eod_preview/ (gitignored — licensed data):
     world/underlying_bars.parquet   ^GSPC daily OHLC at the same canonical ts
     world/sessions.parquet          XNYS-proxy sessions for the two windows
 
-Usage (Theta Terminal running, free login is enough):
+Usage (free-tier login is enough):
 
     python -m options_strategy.data.vendors.theta_eod --probe   # verify EOD has NBBO
     python -m options_strategy.data.vendors.theta_eod           # fetch (resumable)
@@ -35,10 +38,12 @@ import yaml
 from options_strategy.data.calendar import load_sessions
 from options_strategy.data.schemas import OPTION_QUOTES_SCHEMA, validate_schema
 from options_strategy.data.vendors.thetadata import (
-    RateLimiter,
-    TerminalClient,
-    TerminalError,
+    ThetaSession,
+    VendorError,
     _as_date,
+    ensure_expiration_date,
+    make_session,
+    require_columns,
 )
 
 DEFAULT_CONFIG = "configs/data/theta_eod_preview.yaml"
@@ -70,7 +75,7 @@ class Window:
 class EodPreviewConfig:
     dataset: str
     out_root: Path
-    base_url: str
+    creds_file: Path
     roots: tuple[str, ...]
     max_dte: int
     strike_window_pct: float
@@ -84,7 +89,7 @@ class EodPreviewConfig:
         return EodPreviewConfig(
             dataset=raw["dataset"],
             out_root=Path(raw["out_root"]),
-            base_url=raw["terminal"]["base_url"].rstrip("/"),
+            creds_file=Path(raw["auth"]["creds_file"]).expanduser(),
             roots=tuple(raw["roots"]),
             max_dte=int(raw["max_dte"]),
             strike_window_pct=float(raw["strike_window_pct"]),
@@ -97,8 +102,8 @@ class EodPreviewConfig:
         )
 
 
-def make_client(cfg: EodPreviewConfig) -> TerminalClient:
-    return TerminalClient(cfg.base_url, limiter=RateLimiter(cfg.rate_limit_per_min))
+def _session(cfg: EodPreviewConfig) -> ThetaSession:
+    return make_session(cfg.creds_file, cfg.rate_limit_per_min)
 
 
 def preview_sessions(cfg: EodPreviewConfig) -> pl.DataFrame:
@@ -111,17 +116,17 @@ def load_spot_closes(cfg: EodPreviewConfig) -> dict[dt.date, float]:
     return dict(zip(spot["date"].to_list(), spot["close"].to_list(), strict=True))
 
 
-def probe_eod(cfg: EodPreviewConfig, client: TerminalClient | None = None) -> dict:
+def probe_eod(cfg: EodPreviewConfig, session: ThetaSession | None = None) -> dict:
     """Directive step 2: does the free EOD endpoint return the closing NBBO?
 
     Pulls one (root, date) report and inspects the columns. ``nbbo_ok`` False
     means quote-bearing preview work is BLOCKED until the paid month.
     """
-    client = client or make_client(cfg)
+    session = session or _session(cfg)
     date = preview_sessions(cfg)["session"][0]
-    df = client.eod_history(cfg.roots[0], date, cfg.max_dte)
+    df = session.eod_history(cfg.roots[0], date, cfg.max_dte)
     if df.is_empty():
-        raise TerminalError(
+        raise VendorError(
             f"EOD probe returned no rows for {cfg.roots[0]} {date} — check login/tier"
         )
     missing = [c for c in EOD_REQUIRED if c not in df.columns]
@@ -131,6 +136,7 @@ def probe_eod(cfg: EodPreviewConfig, client: TerminalClient | None = None) -> di
         else df.filter(pl.col("bid").is_not_null() & (pl.col("ask") > 0)).height
     )
     return {
+        "subscriptions": session.subscriptions(),
         "probe_root": cfg.roots[0],
         "probe_date": str(date),
         "rows": df.height,
@@ -142,9 +148,9 @@ def probe_eod(cfg: EodPreviewConfig, client: TerminalClient | None = None) -> di
 
 
 def fetch_preview(
-    cfg: EodPreviewConfig, client: TerminalClient | None = None, force: bool = False
+    cfg: EodPreviewConfig, session: ThetaSession | None = None, force: bool = False
 ) -> dict:
-    client = client or make_client(cfg)
+    session = session or _session(cfg)
     raw_dir = cfg.out_root / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     sessions = preview_sessions(cfg)
@@ -165,12 +171,10 @@ def fetch_preview(
             continue
         frames = []
         for root in cfg.roots:
-            df = client.eod_history(root, date, cfg.max_dte)
+            df = session.eod_history(root, date, cfg.max_dte)
             if df.is_empty():
                 continue
-            missing = [c for c in EOD_REQUIRED if c not in df.columns]
-            if missing:
-                raise TerminalError(f"EOD response for {root} {date} missing {missing}")
+            require_columns(df, EOD_REQUIRED, f"EOD {root} {date}")
             frames.append(
                 df.with_columns(pl.lit(root).alias("root"), pl.lit(window).alias("window"))
             )
@@ -184,6 +188,7 @@ def fetch_preview(
 
     manifest = {
         "vendor": "thetadata",
+        "transport": "official python library (gRPC, no terminal)",
         "dataset": cfg.dataset,
         "tier": "FREE (options EOD from 2023-06-01)",
         "fetched_at_utc": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
@@ -210,10 +215,8 @@ def _to_option_quotes(
         else pl.lit(None, dtype=pl.Int64)
     )
     out = (
-        raw.filter(pl.col("strike").is_between(lo, hi))
-        .with_columns(
-            pl.col("expiration").cast(pl.Utf8).str.replace_all("-", "").str.to_date("%Y%m%d")
-        )
+        ensure_expiration_date(raw.with_columns(pl.col("strike").cast(pl.Float64)))
+        .filter(pl.col("strike").is_between(lo, hi))
         .select(
             pl.lit(close_ts).dt.replace_time_zone("America/New_York").alias("ts"),
             pl.col("root").cast(pl.String),
@@ -264,7 +267,7 @@ def build_world(cfg: EodPreviewConfig, data_version: str) -> dict:
     for f in raw_files:
         date = dt.date.fromisoformat(f.stem.removeprefix("date="))
         if date not in spot_by_date:
-            raise TerminalError(f"no ^GSPC close for {date} — refresh data/raw/free first")
+            raise VendorError(f"no ^GSPC close for {date} — refresh data/raw/free first")
         close_ts = close_by_date[date].replace(tzinfo=None)
         df = _to_option_quotes(
             pl.read_parquet(f), close_ts, spot_by_date[date], cfg.strike_window_pct

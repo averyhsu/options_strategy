@@ -18,8 +18,12 @@ vendor: thetadata
 dataset: credit_check_slice
 out_root: data/raw/thetadata/credit_check_slice
 
-terminal:
-  base_url: "http://127.0.0.1:25503"   # Theta Terminal v3 local HTTP server
+# Official python-library transport (gRPC, no Theta Terminal). The creds file
+# (email line 1, password line 2) is read by the vendor library only — this
+# codebase never reads its contents.
+auth:
+  creds_file: ~/theta/creds.txt
+rate_limit_per_min: 28
 
 roots: [SPX, SPXW]        # AM-settled monthlies + PM-settled weeklys; never mixed downstream
 max_dte: 63               # calendar days; covers front Friday + all §8.1 back-leg offsets
