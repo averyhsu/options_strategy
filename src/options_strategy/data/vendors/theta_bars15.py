@@ -119,8 +119,17 @@ def fetch_range(start: dt.date, end: dt.date, workers: int = 4) -> dict:
     fetched = 0
     bytes_new = 0
 
+    failed: list[str] = []
+
     def pull_one(day: dt.date) -> tuple[dt.date, int, int]:
-        df = fetch_day(session, day, spots[day])
+        try:
+            df = fetch_day(session, day, spots[day])
+        except VendorError as e:
+            # one poisoned (root, day) must not kill a multi-day run; the
+            # missing file makes the next resume retry it automatically
+            failed.append(str(day))
+            print(f"  {day}: FAILED after retries ({e})", flush=True)
+            return day, 0, 0
         if df.is_empty():
             return day, 0, 0
         path = raw_dir / f"date={day}.parquet"
@@ -152,6 +161,7 @@ def fetch_range(start: dt.date, end: dt.date, workers: int = 4) -> dict:
         "range": [str(start), str(end)],
         "n_sessions_total": len(days),
         "n_sessions_present": done + fetched,
+        "failed_days": failed,
         "license_note": "Licensed ThetaData data; gitignored, never commit.",
     }
     (OUT_ROOT / "raw_manifest.json").write_text(json.dumps(manifest, indent=2))
