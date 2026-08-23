@@ -80,3 +80,24 @@ def test_prune_rules_match_plan_9_1() -> None:
     assert "win_magnitude" in prune_reasons(_metrics(win_mag_median=0.05))
     assert "win_magnitude" in prune_reasons(_metrics(win_mag_median=float("nan")))
     assert "drawdown" in prune_reasons(_metrics(max_dd=0.55))
+
+
+def test_space_v4_exit_mode_dim() -> None:
+    from options_strategy.sweep.space import DIM_NAMES, params_from_unit, weekly_config
+    import numpy as np
+
+    assert DIM_NAMES[-1] == "exit_mode"
+    assert len(DIM_NAMES) == 21
+    # exit_7dte + 14d front -> exit_dte 7; 7d front -> inert (None)
+    u = np.full(21, 0.5)
+    u[20] = 0.9  # exit_7dte
+    u[19] = 0.9  # front_dte 14
+    p = params_from_unit(u)
+    assert p["exit_mode"] == "exit_7dte" and p["front_dte"] == 14
+    assert weekly_config(p).exit_dte == 7
+    u[19] = 0.1  # front_dte 7
+    p7 = params_from_unit(u)
+    assert weekly_config(p7).exit_dte is None
+    u[20] = 0.1  # hold
+    u[19] = 0.9
+    assert weekly_config(params_from_unit(u)).exit_dte is None

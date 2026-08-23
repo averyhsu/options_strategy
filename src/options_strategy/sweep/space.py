@@ -36,6 +36,10 @@ RISK_FRACS = (0.10, 0.15, 0.20)
 STRIKE_FAMILIES = ("percentile", "delta")
 WING_FAMILIES = ("near", "wide")  # near = 0-50 pts (default), wide = 50-100 (fallback)
 FRONT_DTES = (7, 14)
+# Space v4 (Pass 2, 2026-08-23): early-exit dim per the 2026-08-18 amendment.
+# Inert for front_dte=7 (an exit_dte >= the tenor is degenerate; the ABC gate
+# already treats inert-dim plateaus as uninformative).
+EXIT_MODES = ("hold", "exit_7dte")
 # front_dte -> (front_min_days, front_max_days) window for select_expiries
 FRONT_DTE_WINDOWS = {7: (5, 9), 14: (12, 16)}
 
@@ -60,6 +64,7 @@ DIM_NAMES = [
     "coverage_q_call",
     "wing_family",
     "front_dte",
+    "exit_mode",
 ]
 
 
@@ -103,6 +108,7 @@ def params_from_unit(u: np.ndarray) -> dict:
         "coverage_q_call": 0.80 + u[17] * 0.15,
         "wing_family": wing_family,
         "front_dte": int(_choice(u[19], FRONT_DTES)),
+        "exit_mode": _choice(u[20], EXIT_MODES),
     }
 
 
@@ -141,6 +147,9 @@ def weekly_config(params: dict) -> WeeklyConfig:
         regime=RegimeConfig(ema_len=params["ema_len"], hysteresis_atr=params["hysteresis"]),
         regime_action=params["regime_action"],
         manage_t1="hold",
+        exit_dte=(
+            7 if (params["exit_mode"] == "exit_7dte" and params["front_dte"] == 14) else None
+        ),
     )
 
 

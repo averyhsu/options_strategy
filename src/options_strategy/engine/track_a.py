@@ -136,9 +136,54 @@ def run_track_a(
                         fees=engine_cfg.fees.fill_fee(cy.entry_fills, n_legs=len(close_legs)),
                     )
 
+        # scheduled early exit (exit_dte): close every still-open leg of a
+        # due cycle at EOD mid — mirrors weekly._maybe_t1 / fast_runner
+        if cfg.exit_dte is not None:
+            for cy in cycles:
+                if (
+                    cy.t1_done
+                    or cy.entry_fills == 0
+                    or session <= cy.entry_session
+                    or (cy.front_expiry - session).days > cfg.exit_dte
+                ):
+                    continue
+                close_legs = tuple(
+                    (key, -ratio)
+                    for key, ratio in cy.plan.legs
+                    if portfolio.positions.get(key, 0) * ratio > 0
+                )
+                mid_debit = 0.0
+                ok = bool(close_legs)
+                for key, ratio in close_legs:
+                    q = view.quote(key)
+                    if q is None or not q.sane or q.bid <= 0:
+                        ok = False
+                        break
+                    mid_debit += ratio * ((q.bid + q.ask) / 2.0)
+                if ok:
+                    fake_order_id += 1
+                    portfolio.apply_combo_fill(
+                        ts=eod_ts,
+                        order_id=fake_order_id,
+                        legs=close_legs,
+                        qty=cy.entry_fills,
+                        price_debit=mid_debit,
+                        fees=engine_cfg.fees.fill_fee(cy.entry_fills, n_legs=len(close_legs)),
+                    )
+                    cy.t1_done = True
+
         # entry at the close
         is_entry = session.weekday() == 4 or last_of_week[i]
-        live_beyond_today = any(cy.front_expiry > session for cy in cycles)
+        live_beyond_today = any(
+            cy.front_expiry > session
+            and not cy.t1_done
+            and not (
+                cfg.exit_dte is not None
+                and session > cy.entry_session
+                and (cy.front_expiry - session).days <= cfg.exit_dte
+            )
+            for cy in cycles
+        )
         if is_entry and not live_beyond_today:
             allowed, _state, _event = gate._regime_allows(view)
             if allowed:

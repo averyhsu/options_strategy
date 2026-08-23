@@ -61,6 +61,12 @@ class WeeklyConfig(BaseModel):
     regime: RegimeConfig = RegimeConfig()
     regime_action: str = "trade_all"
     manage_t1: str = "hold"
+    # Early exit (PLAN §8.2 / 2026-08-18 amendment): close the whole cycle at
+    # EOD of the first session AFTER entry with (front_expiry - session).days
+    # <= exit_dte, freeing that same session's entry (weekly cadence on 14d
+    # fronts). None = hold to front expiry. Degenerate for 7d fronts, so the
+    # sweep maps exit_mode to None there (inert dim).
+    exit_dte: int | None = None
 
     def model_post_init(self, __context) -> None:
         if self.regime_action not in REGIME_ACTIONS:
@@ -154,8 +160,15 @@ class DoubleDiagonalWeekly:
             if not eod_mode:
                 self._maybe_relax(view, broker, entry_session)
             return
-        # blocked while an existing cycle's front legs are still alive BEYOND today:
-        if any(cy.front_expiry > view.session_date for cy in self.cycles):
+        # blocked while an existing cycle's front legs are still alive BEYOND
+        # today — a cycle whose scheduled early exit fires today does NOT
+        # block (its close and the new entry share the EOD bar):
+        if any(
+            cy.front_expiry > view.session_date
+            and not cy.t1_done
+            and not self._exit_due(cy, view.session_date)
+            for cy in self.cycles
+        ):
             return
 
         allowed, state, event = self._regime_allows(view)
@@ -363,15 +376,24 @@ class DoubleDiagonalWeekly:
             )
             cy.harvested = True
 
+    def _exit_due(self, cy: CycleState, session: dt.date) -> bool:
+        return (
+            self.cfg.exit_dte is not None
+            and session > cy.entry_session
+            and (cy.front_expiry - session).days <= self.cfg.exit_dte
+        )
+
     def _maybe_t1(self, view: MarketView, portfolio: Portfolio, broker: BrokerLike) -> None:
-        if self.cfg.manage_t1 != "close_all":
-            return
         for cy in self.cycles:
+            t1_hit = (
+                self.cfg.manage_t1 == "close_all"
+                and view.next_session == cy.front_expiry
+            )
             if (
                 cy.t1_done
                 or cy.entry_fills == 0
                 or not view.is_last_bar_of_session
-                or view.next_session != cy.front_expiry
+                or not (t1_hit or self._exit_due(cy, view.session_date))
             ):
                 continue
             legs = tuple(

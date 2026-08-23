@@ -255,6 +255,39 @@ def run_config(
                 elif spot >= cy["short_call"] and "call" not in cy["defended"]:
                     close_side(sd, cy, "call")
 
+        # scheduled early exit (exit_dte): close every still-open leg at EOD
+        # mid and free this session's entry slot — mirrors weekly._maybe_t1 /
+        # run_track_a. Missing mids skip-and-retry next session.
+        if cfg.exit_dte is not None and sd is not None:
+            keep: list[dict] = []
+            for cy in open_cycles:
+                due = (
+                    session > cy["entry_session"]
+                    and (cy["front"] - session).days <= cfg.exit_dte
+                )
+                if not due:
+                    keep.append(cy)
+                    continue
+                close_legs = [
+                    leg for leg in cy["legs"] if positions.get(leg, 0) * leg[3] > 0
+                ]
+                mids = [_mid_at(sd, leg) for leg in close_legs]
+                if not close_legs or any(m is None for m in mids):
+                    keep.append(cy)  # retry next session
+                    continue
+                qty = cy["qty"]
+                debit = sum(-leg[3] * m for leg, m in zip(close_legs, mids, strict=True))
+                cash -= debit * qty * CONTRACT_MULTIPLIER
+                fees = fees_per_leg * qty * len(close_legs)
+                cash -= fees
+                fees_paid += fees
+                n_fills += 1
+                for leg in close_legs:
+                    positions[leg] = positions.get(leg, 0) - leg[3] * qty
+                    if positions.get(leg) == 0:
+                        positions.pop(leg)
+            open_cycles = keep
+
         can_enter = (
             cache.entry_flags[i]
             and sd is not None
