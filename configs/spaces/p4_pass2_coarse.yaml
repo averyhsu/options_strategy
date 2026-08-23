@@ -1,9 +1,9 @@
-# Pass-2 coarse sweep run knobs (PLAN §9.1) — space v3 (20 dims, 2026-08-16
-# near-calendar amendment: wing_family near/wide, front_dte {7,14}).
-# `world` points at the real-data adapter root; set it when purchased CBOE
-# data lands in data/raw/cboe/ and has passed `options_strategy qa`
-# (data_version bump + P2 invariant rerun come first — PLAN §12.0).
+# Pass-2 coarse sweep run knobs (PLAN §9.1) — space v4 (21 dims: the v3
+# near-calendar set + exit_mode {hold, exit_7dte}, 2026-08-18 amendment).
+# World = the REAL ThetaData 15-min decade (theta_decade_world_v2, 2016-01-04
+# -> 2026-08-10, 15:45 EOD basis, parity-derived spot/settlements), QA'd
+# under configs/qa/real_nbbo_v1.yaml.
 n_configs: 16384
-seed: 20260816
-world: data/raw/cboe
+seed: 20260823
+world: data/raw/theta/decade_world
 out_dir: experiments/p4_pass2
