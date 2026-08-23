@@ -1,0 +1,28 @@
+# REAL fingerprint targets (PLAN §2, IBKR PortfolioAnalyst screenshots),
+# window 2026-04-01 -> 2026-07-30, 87 trading days. NEVER edited silently
+# (CLAUDE.md); the daily VAMI path itself is NOT available (endpoint + stats
+# only), so the ABC curve-distance term does not bind — reported in the match.
+window:
+  start: 2026-04-01
+  end: 2026-07-30
+rf_annual: 0.0262          # §2.1 self-consistency calibration (reproduces F6+F7)
+
+targets:
+  sharpe_ann: 2.99          # F6
+  sortino_ann: 4.45         # F7
+  std_daily: 0.0244         # F8
+  downside_dev_daily: 0.0164  # F9
+  mean_daily: 0.0047        # F10
+  pct_positive: 0.7241      # F11 (63/87)
+  max_dd: 0.1111            # F3
+  dd_peak_date: 2026-07-10  # F4 (hard gate, ±2 days)
+  dd_valley_date: 2026-07-13
+  recovery_days: 9          # F5
+  weekly_wr: 0.885          # F14 midpoint of the 0.85-0.92 prior
+  median_win_pct_r: 0.30    # F14 "+30% of R"
+
+abc:
+  n_candidates: 16384       # same budget as the P6 synthetic gate
+  sweep_seed: 20260823
+  accept_frac: 0.01
+  dd_tol_days: 2
