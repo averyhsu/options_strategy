@@ -147,12 +147,17 @@ def select_expiries(
     """(front, back_put, back_call) SPXW expiries per the offsets."""
     weeklies = sorted(e for e, root, _ in view.expiries() if root == "SPXW")
     today = view.session_date
-    front = next(
-        (e for e in weeklies if cfg.front_min_days <= (e - today).days <= cfg.front_max_days),
-        None,
-    )
-    if front is None:
+    # front = in-window expiry CLOSEST to the window center (ties -> later):
+    # real chains list DAILY expiries, so first-in-window would systematically
+    # pick a Mon/Wed front instead of the F13 Friday cadence (found 2026-08-23
+    # on the real live world; same rule as the tick fetcher's Friday fix).
+    center = (cfg.front_min_days + cfg.front_max_days) / 2.0
+    in_window = [
+        e for e in weeklies if cfg.front_min_days <= (e - today).days <= cfg.front_max_days
+    ]
+    if not in_window:
         return None
+    front = min(in_window, key=lambda e: (abs((e - today).days - center), -(e - today).days))
     back_put = next(
         (e for e in weeklies if (e - front).days >= cfg.long_put_expiry_offset_days), None
     )

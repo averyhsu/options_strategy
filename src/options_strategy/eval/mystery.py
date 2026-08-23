@@ -55,9 +55,18 @@ CATEGORICAL_DIMS = {
 
 
 def fp_chunk(
-    world_root: str, out_dir: str, sweep_seed: int, n_candidates: int, chunk_idx: int
+    world_root: str,
+    out_dir: str,
+    sweep_seed: int,
+    n_candidates: int,
+    chunk_idx: int,
+    account_size: float | None = None,
 ) -> Path:
-    """Fingerprint candidates [chunk] over the live window; checkpointed."""
+    """Fingerprint candidates [chunk] over the live window; checkpointed.
+
+    account_size overrides the engine default for scale-sensitive sizing
+    (Pass 2: real-chain debit structures carry ~$13-18k risk/contract, so a
+    $100k account floors qty to 0; the fingerprints are %-scale)."""
     out = Path(out_dir) / "fp_chunks"
     out.mkdir(parents=True, exist_ok=True)
     ckpt = out / f"fp_{chunk_idx:04d}.parquet"
@@ -67,7 +76,7 @@ def fp_chunk(
     adapter = SyntheticWorldAdapter(world_root)
     combos = [(e, h) for e in EMA_LENS for h in HYSTERESIS]
     cache = build_cache(adapter, combos)
-    engine = EngineConfig()
+    engine = EngineConfig() if account_size is None else EngineConfig(account_size=account_size)
     sessions = cache.sessions
     i0 = next(i for i, s in enumerate(sessions) if s >= LIVE_START)
     i1 = max(i for i, s in enumerate(sessions) if s <= LIVE_END)

@@ -26,3 +26,8 @@ abc:
   sweep_seed: 20260823
   accept_frac: 0.01
   dd_tol_days: 2
+  # Pass-2 sizing scale: fingerprints are %-based; real-chain debit diagonals
+  # carry ~$13-18k risk/contract, so the $100k fee-granularity default floors
+  # qty to 0 (found 2026-08-23: 88% of candidates never traded). $1M keeps
+  # integer-contract effects small; per-contract fees scale accordingly.
+  account_size: 1000000

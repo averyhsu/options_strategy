@@ -79,12 +79,15 @@ def _mark(sd: SessionData, leg: Leg) -> float:
 def _pick_expiries(sd: SessionData, cfg: WeeklyConfig) -> tuple[dt.date, dt.date, dt.date] | None:
     s = cfg.structure
     today = sd.session
-    front = next(
-        (e for e in sd.expiries if s.front_min_days <= (e - today).days <= s.front_max_days),
-        None,
-    )
-    if front is None:
+    # mirror strategy.diagonal.select_expiries: closest-to-center front
+    # (ties -> later) — real chains list daily expiries (see 2026-08-23 note)
+    center = (s.front_min_days + s.front_max_days) / 2.0
+    in_window = [
+        e for e in sd.expiries if s.front_min_days <= (e - today).days <= s.front_max_days
+    ]
+    if not in_window:
         return None
+    front = min(in_window, key=lambda e: (abs((e - today).days - center), -(e - today).days))
     back_put = next(
         (e for e in sd.expiries if (e - front).days >= s.long_put_expiry_offset_days), None
     )

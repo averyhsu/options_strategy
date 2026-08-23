@@ -213,13 +213,14 @@ def main() -> int:
     if args.finalize:
         print(json.dumps(finalize(), indent=2, default=str))
         return 0
+    account = float(raw['abc'].get('account_size') or 0) or None
     if args.chunk is not None:
-        fp_chunk(WORLD_ROOT, str(OUT_DIR), seed, n, args.chunk)
+        fp_chunk(WORLD_ROOT, str(OUT_DIR), seed, n, args.chunk, account_size=account)
         print(json.dumps({"chunk": args.chunk, "done": True}))
         return 0
     n_chunks = (n + CHUNK - 1) // CHUNK
     for i in range(n_chunks):
-        fp_chunk(WORLD_ROOT, str(OUT_DIR), seed, n, i)
+        fp_chunk(WORLD_ROOT, str(OUT_DIR), seed, n, i, account_size=account)
         print(f"chunk {i + 1}/{n_chunks} done ({dt.datetime.now():%H:%M:%S})", flush=True)
     print(json.dumps(finalize(), indent=2, default=str))
     return 0
