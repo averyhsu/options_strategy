@@ -55,6 +55,11 @@ def to_quotes(raw: pl.DataFrame) -> pl.DataFrame:
     # NaN > 0 as TRUE — they'd sail through every "live quote" filter and
     # poison parity fits and marks. Drop them here (counted by the caller).
     raw = raw.filter(~(pl.col("bid").is_nan() | pl.col("ask").is_nan()))
+    # drop the 16:00 closing-state bar: quote quality there is degraded (QA:
+    # most bad parity fits sit at 16:00) and the spec's PRIMARY basis is
+    # 15:45 — so the engine's "EOD = last bar" convention lands on 15:45.
+    # Settlements are computed separately from the pre-drop parity spots.
+    raw = raw.filter(pl.col("timestamp").dt.hour() < 16)
     out = (
         raw.select(
             pl.col("timestamp").dt.cast_time_unit("us").alias("ts"),
