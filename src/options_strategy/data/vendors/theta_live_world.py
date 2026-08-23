@@ -150,8 +150,13 @@ def build_world(
     if not files:
         raise VendorError("no bars15 sessions in the live-world window")
     qdir = out_root / "option_quotes"
+    sdir = out_root / "spots"
     qdir.mkdir(parents=True, exist_ok=True)
+    sdir.mkdir(parents=True, exist_ok=True)
 
+    # RESUMABLE: parity spots persist as per-session sidecars, so a crash in
+    # the post-loop aggregation (seen once: silent OOM after 2600 sessions)
+    # never re-costs the fit loop. quotes+spots present -> session skipped.
     bar_rows: list[pl.DataFrame] = []
     dates: list[dt.date] = []
     total = 0
@@ -159,7 +164,19 @@ def build_world(
     dropped_sessions: list[str] = []
     for f in files:
         date = dt.date.fromisoformat(f.stem.removeprefix("date="))
-        quotes = to_quotes(pl.read_parquet(f))
+        qpath = qdir / f"date={date}.parquet"
+        spath = sdir / f"date={date}.parquet"
+        if qpath.exists() and spath.exists():
+            spots = pl.read_parquet(spath)
+            bar_rows.append(spots)
+            dates.append(date)
+            total += pl.scan_parquet(qpath).select(pl.len()).collect().item()
+            continue
+        if qpath.exists() and not spath.exists():
+            # quotes saved by a previous run; recompute spots from them
+            quotes = pl.read_parquet(qpath)
+        else:
+            quotes = to_quotes(pl.read_parquet(f))
         spots = parity_spots_for_session(quotes)
         # every stored quote snapshot MUST have an underlying bar (the engine
         # indexes bars by quote ts), so trim quotes to spot-bearing ts; a
@@ -169,7 +186,8 @@ def build_world(
             continue
         no_spot_ts += quotes["ts"].n_unique() - spots.height
         quotes = quotes.filter(pl.col("ts").is_in(spots["ts"].to_list()))
-        quotes.write_parquet(qdir / f"date={date}.parquet")
+        quotes.write_parquet(qpath)
+        spots.write_parquet(spath)
         bar_rows.append(spots)
         dates.append(date)
         total += quotes.height
@@ -191,14 +209,23 @@ def build_world(
     sessions = load_sessions(min(dates), max(dates)).filter(pl.col("session").is_in(dates))
     sessions.write_parquet(out_root / "sessions.parquet")
 
-    # observed expiry table from the quotes themselves (vendor listing wins)
-    exp_frames = [
-        pl.scan_parquet(qdir / f"date={d}.parquet").select("expiry_date", "root", "am_pm_settle")
-        for d in dates
-    ]
+    # observed expiry table from the quotes themselves (vendor listing wins).
+    # STREAMING per-file unique (a 2665-file lazy concat + collect died
+    # silently at scale — likely memory): tiny set union instead.
+    seen: set[tuple] = set()
+    for d in dates:
+        u = (
+            pl.read_parquet(
+                qdir / f"date={d}.parquet", columns=["expiry_date", "root", "am_pm_settle"]
+            )
+            .unique()
+            .rows()
+        )
+        seen.update(u)
     expiries = (
-        pl.concat(exp_frames).unique().collect()
-        .rename({"am_pm_settle": "settlement"})
+        pl.DataFrame(
+            [{"expiry_date": e, "root": r, "settlement": s} for e, r, s in sorted(seen)]
+        )
         .select("expiry_date", "root", "settlement")
         .sort("expiry_date", "root")
     )
