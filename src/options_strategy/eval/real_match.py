@@ -137,6 +137,33 @@ def finalize() -> dict:
     marg = _marginals(accepted)
     n_identified = sum(1 for m in marg if m["identified"])
 
+    # Zero-acceptance diagnosis: rank WITHOUT the F4 hard gate so the report
+    # shows HOW FAR the nearest candidates sit, not just that none passed.
+    nearest: list[dict] = []
+    if not accepted:
+        soft = abc_match(fps, target, accept_frac=float(abc_cfg["accept_frac"]),
+                         dd_tol_days=10**6)
+        order = np.argsort(soft.distances)[:10]
+        for i in order:
+            r = rows[int(i)]
+            nearest.append(
+                {
+                    "dist": float(soft.distances[int(i)]),
+                    "n_live_cycles": r["n_live_cycles"],
+                    "sharpe": round(r["sharpe_ann"], 2),
+                    "weekly_wr": (
+                        round(r["weekly_wr"], 3) if r["weekly_wr"] == r["weekly_wr"] else None
+                    ),
+                    "max_dd": round(r["max_dd"], 4),
+                    "dd_peak": str(r["dd_peak_date"]),
+                    "dd_valley": str(r["dd_valley_date"]),
+                    "strike_family": r["strike_family"],
+                    "front_dte": r["front_dte"],
+                    "exit_mode": r["exit_mode"],
+                    "defense": r["defense"],
+                }
+            )
+
     world_manifest = json.loads((Path(WORLD_ROOT) / "manifest.json").read_text())
     summary = {
         "data_version": world_manifest["data_version"],
@@ -179,6 +206,32 @@ def finalize() -> dict:
         "that matches'; plateau dims are unconstrained by the published record.",
         "",
     ]
+    if nearest:
+        lines += [
+            "## Zero-acceptance diagnosis (nearest candidates, F4 gate disabled)",
+            "",
+            "| dist | cycles | sharpe | wr | maxDD | dd peak->valley "
+            "| family | front | exit | defense |",
+            "|---|---|---|---|---|---|---|---|---|---|",
+            *[
+                f"| {m['dist']:.2f} | {m['n_live_cycles']} | {m['sharpe']} | {m['weekly_wr']} "
+                f"| {m['max_dd']} | {m['dd_peak']}->{m['dd_valley']} | {m['strike_family']} "
+                f"| {m['front_dte']} | {m['exit_mode']} | {m['defense']} |"
+                for m in nearest
+            ],
+            "",
+            "**Reading:** zero candidates pass the F4 drawdown-date hard gate, and the "
+            "nearest soft-ranked candidates sit far from the targets on the scalar "
+            "features as well. On this data and under this model of the family "
+            "(EOD-mid fills at the 15:45 basis, {none, close-tested-side} defense, "
+            "dual strike families, 7d/14d fronts with optional exit-at-7dte), NO "
+            "parameter region reproduces the published live record. Model gaps that "
+            "could account for the mismatch (not evidence of the record's veracity "
+            "either way): richer defense/rolling than the collapsed proxy, resting "
+            "intraday credit-order fills vs EOD-mid, and any non-diagonal activity "
+            "in the account beyond the acceptance tolerance.",
+            "",
+        ]
     REPORT_MD.write_text("\n".join(lines))
 
     cfg_str = json.dumps(
