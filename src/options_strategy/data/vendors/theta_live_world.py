@@ -131,15 +131,20 @@ def build_rates(sessions: pl.DataFrame) -> pl.DataFrame:
     return validate_schema(out, RATES_SCHEMA, "theta_live rates")
 
 
-def build_world(data_version: str = "theta_live_world_v1") -> dict:
+def build_world(
+    data_version: str = "theta_live_world_v1",
+    out_root: Path = OUT_ROOT,
+    start: dt.date = WINDOW_START,
+    end: dt.date = WINDOW_END,
+) -> dict:
     files = sorted(
         f
         for f in BARS_DIR.glob("date=*.parquet")
-        if WINDOW_START <= dt.date.fromisoformat(f.stem.removeprefix("date=")) <= WINDOW_END
+        if start <= dt.date.fromisoformat(f.stem.removeprefix("date=")) <= end
     )
     if not files:
         raise VendorError("no bars15 sessions in the live-world window")
-    qdir = OUT_ROOT / "option_quotes"
+    qdir = out_root / "option_quotes"
     qdir.mkdir(parents=True, exist_ok=True)
 
     bar_rows: list[pl.DataFrame] = []
@@ -176,10 +181,10 @@ def build_world(data_version: str = "theta_live_world_v1") -> dict:
         pl.col("spot").alias("low"),
         pl.col("spot").alias("close"),
     )
-    underlying.write_parquet(OUT_ROOT / "underlying_bars.parquet")
+    underlying.write_parquet(out_root / "underlying_bars.parquet")
 
     sessions = load_sessions(min(dates), max(dates)).filter(pl.col("session").is_in(dates))
-    sessions.write_parquet(OUT_ROOT / "sessions.parquet")
+    sessions.write_parquet(out_root / "sessions.parquet")
 
     # observed expiry table from the quotes themselves (vendor listing wins)
     exp_frames = [
@@ -193,7 +198,7 @@ def build_world(data_version: str = "theta_live_world_v1") -> dict:
         .sort("expiry_date", "root")
     )
     validate_schema(expiries, EXPIRIES_SCHEMA, "theta_live expiries").write_parquet(
-        OUT_ROOT / "expiries.parquet"
+        out_root / "expiries.parquet"
     )
 
     # settlements: PM = last-bar parity spot of expiry session, AM = first-bar
@@ -213,10 +218,10 @@ def build_world(data_version: str = "theta_live_world_v1") -> dict:
         .sort("expiry_date", "root")
     )
     validate_schema(settle, SETTLEMENTS_SCHEMA, "theta_live settlements").write_parquet(
-        OUT_ROOT / "settlements.parquet"
+        out_root / "settlements.parquet"
     )
 
-    build_rates(sessions).write_parquet(OUT_ROOT / "rates.parquet")
+    build_rates(sessions).write_parquet(out_root / "rates.parquet")
 
     manifest = {
         "data_version": data_version,
@@ -239,15 +244,23 @@ def build_world(data_version: str = "theta_live_world_v1") -> dict:
             "rates = FRED DTB3, single 91d tenor, cc ACT/365",
         ],
     }
-    (OUT_ROOT / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    (out_root / "manifest.json").write_text(json.dumps(manifest, indent=2))
     return manifest
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data-version", default="theta_live_world_v1")
+    ap.add_argument("--out", default=str(OUT_ROOT))
+    ap.add_argument("--start", default=str(WINDOW_START))
+    ap.add_argument("--end", default=str(WINDOW_END))
     args = ap.parse_args()
-    m = build_world(args.data_version)
+    m = build_world(
+        args.data_version,
+        out_root=Path(args.out),
+        start=dt.date.fromisoformat(args.start),
+        end=dt.date.fromisoformat(args.end),
+    )
     print(json.dumps({k: v for k, v in m.items() if k != "proxies"}, indent=2))
 
 
