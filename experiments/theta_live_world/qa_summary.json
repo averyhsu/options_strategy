@@ -6,22 +6,22 @@
     "crossed_locked_rows": 0,
     "stale_episodes": 0
   },
-  "missing_bars_total": 0,
-  "n_flagged_rows": 115244,
-  "n_parity_bad": 30096,
-  "n_parity_fits": 477907,
-  "n_rows": 151342072,
+  "missing_bars_total": 446,
+  "n_flagged_rows": 112161,
+  "n_parity_bad": 24272,
+  "n_parity_fits": 460168,
+  "n_rows": 145562243,
   "n_sessions": 547,
   "sessions_without_file": 0,
   "structure_violations": {
-    "bound": 35403,
-    "fly": 867,
-    "mono": 771
+    "bound": 35328,
+    "fly": 794,
+    "mono": 721
   },
   "truth": {},
   "unexpected": {
-    "parity_bad": 30096,
-    "sanity_rows": 77825,
-    "structure_rows": 37419
+    "parity_bad": 24272,
+    "sanity_rows": 74932,
+    "structure_rows": 37229
   }
 }

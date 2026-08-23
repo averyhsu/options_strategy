@@ -3,7 +3,7 @@
   "label": "REAL \u2014 ThetaData 15-min NBBO (bars15 decade extract); parity-derived spot/settlements; NOT synthetic",
   "vendor": "thetadata",
   "dataset": "live_world",
-  "built_at_utc": "2026-08-23T22:04:25+00:00",
+  "built_at_utc": "2026-08-23T22:54:26+00:00",
   "window": [
     "2024-06-03",
     "2026-08-07"
@@ -13,7 +13,7 @@
     "2026-07-30"
   ],
   "n_sessions": 547,
-  "n_quote_rows": 151342072,
+  "n_quote_rows": 145562243,
   "snapshots_without_parity_spot_trimmed": 452,
   "dropped_sessions": [],
   "proxies": [
