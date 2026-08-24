@@ -1,0 +1,126 @@
+{
+  "spot_fri": 7572.640555368039,
+  "spot_mon": 7514.02953681953,
+  "spot_ret_weekend": -0.007739838979543334,
+  "spot_daily_vol_jun_jul": 0.009571679047084905,
+  "f4_loss_target_dollars": 111100.0,
+  "results": [
+    {
+      "structure": "double_diagonal_7d_front",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -347.5,
+      "units_for_f4_loss": 319.7,
+      "gross_premium_at_sizing": 2985313.0,
+      "premium_frac_of_account": 2.985,
+      "weekend_loss_frac_of_premium": 0.037
+    },
+    {
+      "structure": "double_diagonal_14d_front",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -710.0,
+      "units_for_f4_loss": 156.5,
+      "gross_premium_at_sizing": 1561659.0,
+      "premium_frac_of_account": 1.562,
+      "weekend_loss_frac_of_premium": 0.071
+    },
+    {
+      "structure": "short_strangle_7d_1pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -1185.0,
+      "units_for_f4_loss": 93.8,
+      "gross_premium_at_sizing": 252670.0,
+      "premium_frac_of_account": 0.253,
+      "weekend_loss_frac_of_premium": 0.44
+    },
+    {
+      "structure": "short_strangle_7d_2pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -927.5,
+      "units_for_f4_loss": 119.8,
+      "gross_premium_at_sizing": 99720.0,
+      "premium_frac_of_account": 0.1,
+      "weekend_loss_frac_of_premium": 1.114
+    },
+    {
+      "structure": "short_strangle_7d_4pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -240.0,
+      "units_for_f4_loss": 462.9,
+      "gross_premium_at_sizing": 91426.0,
+      "premium_frac_of_account": 0.091,
+      "weekend_loss_frac_of_premium": 1.215
+    },
+    {
+      "structure": "short_strangle_14d_1pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -990.0,
+      "units_for_f4_loss": 112.2,
+      "gross_premium_at_sizing": 708122.0,
+      "premium_frac_of_account": 0.708,
+      "weekend_loss_frac_of_premium": 0.157
+    },
+    {
+      "structure": "short_strangle_14d_2pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -1120.0,
+      "units_for_f4_loss": 99.2,
+      "gross_premium_at_sizing": 293125.0,
+      "premium_frac_of_account": 0.293,
+      "weekend_loss_frac_of_premium": 0.379
+    },
+    {
+      "structure": "short_strangle_14d_4pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -735.0,
+      "units_for_f4_loss": 151.2,
+      "gross_premium_at_sizing": 125460.0,
+      "premium_frac_of_account": 0.125,
+      "weekend_loss_frac_of_premium": 0.886
+    },
+    {
+      "structure": "short_strangle_35d_1pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -395.0,
+      "units_for_f4_loss": 281.3,
+      "gross_premium_at_sizing": 4868711.0,
+      "premium_frac_of_account": 4.869,
+      "weekend_loss_frac_of_premium": 0.023
+    },
+    {
+      "structure": "short_strangle_35d_2pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -485.0,
+      "units_for_f4_loss": 229.1,
+      "gross_premium_at_sizing": 2764901.0,
+      "premium_frac_of_account": 2.765,
+      "weekend_loss_frac_of_premium": 0.04
+    },
+    {
+      "structure": "short_strangle_35d_4pct",
+      "status": "candidate",
+      "pnl_per_unit_fri_to_mon": -800.0,
+      "units_for_f4_loss": 138.9,
+      "gross_premium_at_sizing": 793671.0,
+      "premium_frac_of_account": 0.794,
+      "weekend_loss_frac_of_premium": 0.14
+    },
+    {
+      "structure": "long_straddle_4d",
+      "status": "gains_on_weekend",
+      "pnl_per_unit": 1570.0
+    },
+    {
+      "structure": "long_straddle_7d",
+      "status": "gains_on_weekend",
+      "pnl_per_unit": 1235.0
+    },
+    {
+      "structure": "outright_index_delta",
+      "status": "candidate",
+      "spot_ret_fri_to_mon": -0.00774,
+      "leverage_for_f4_loss": 14.4,
+      "implied_daily_vol_at_that_leverage": 0.1374,
+      "consistent_with_244bp_daily_vol": false
+    }
+  ]
+}

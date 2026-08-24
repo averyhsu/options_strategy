@@ -1,0 +1,124 @@
+{
+  "n_candidates": 16384,
+  "eps": 1.7664410742241605,
+  "n_accepted": 164,
+  "marginals": [
+    {
+      "dim": "short_put_delta",
+      "accepted": "[0.05178, 0.4903] med 0.2518",
+      "identified": false
+    },
+    {
+      "dim": "short_call_delta",
+      "accepted": "[0.06295, 0.4966] med 0.2454",
+      "identified": false
+    },
+    {
+      "dim": "long_put_offset_days",
+      "accepted": "[7, 56] med 25.5",
+      "identified": false
+    },
+    {
+      "dim": "long_call_offset_days",
+      "accepted": "[7, 56] med 44",
+      "identified": false
+    },
+    {
+      "dim": "long_strike_offset",
+      "accepted": "[0, 100] med 55",
+      "identified": false
+    },
+    {
+      "dim": "credit_threshold_frac",
+      "accepted": "[0.2002, 0.5967] med 0.4254",
+      "identified": false
+    },
+    {
+      "dim": "threshold_reference",
+      "accepted": "max_gain (50), scenario_r (53), width (61)",
+      "identified": false
+    },
+    {
+      "dim": "require_credit",
+      "accepted": "False (164)",
+      "identified": true
+    },
+    {
+      "dim": "min_credit_frac",
+      "accepted": "[0.000997, 0.1992] med 0.09591",
+      "identified": false
+    },
+    {
+      "dim": "regime_action",
+      "accepted": "any_event (106), bull_only (12), retracement_only (7), trade_all (39)",
+      "identified": false
+    },
+    {
+      "dim": "ema_len",
+      "accepted": "13 (70), 21 (57), 34 (37)",
+      "identified": false
+    },
+    {
+      "dim": "hysteresis",
+      "accepted": "0.0 (47), 0.25 (47), 0.5 (70)",
+      "identified": false
+    },
+    {
+      "dim": "defense",
+      "accepted": "close_side_eod (40), none (124)",
+      "identified": false
+    },
+    {
+      "dim": "risk_definition",
+      "accepted": "margin (13), scenario (74), width (77)",
+      "identified": false
+    },
+    {
+      "dim": "risk_fraction",
+      "accepted": "0.1 (49), 0.15 (69), 0.2 (46)",
+      "identified": false
+    },
+    {
+      "dim": "strike_family",
+      "accepted": "delta (104), percentile (60)",
+      "identified": false
+    },
+    {
+      "dim": "coverage_q_put",
+      "accepted": "[0.8011, 0.9499] med 0.8802",
+      "identified": false
+    },
+    {
+      "dim": "coverage_q_call",
+      "accepted": "[0.8007, 0.949] med 0.878",
+      "identified": false
+    },
+    {
+      "dim": "wing_family",
+      "accepted": "near (70), wide (94)",
+      "identified": false
+    },
+    {
+      "dim": "front_dte",
+      "accepted": "14 (41), 7 (123)",
+      "identified": false
+    },
+    {
+      "dim": "exit_mode",
+      "accepted": "exit_7dte (67), hold (97)",
+      "identified": false
+    }
+  ],
+  "cadence": {
+    "n_live_cycles_median": 3.0,
+    "n_live_cycles_p90": 12.400000000000034,
+    "share_full_cadence_ge15": 0.042682926829268296,
+    "share_selective_le7": 0.7439024390243902
+  },
+  "accepted_feature_medians": {
+    "sharpe_ann": 2.2862036104738337,
+    "weekly_wr": NaN,
+    "max_dd": 0.07860765355815685,
+    "mean_daily": 0.002045681548086123
+  }
+}
