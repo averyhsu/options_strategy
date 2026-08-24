@@ -1,0 +1,24 @@
+{
+  "data_version": "theta_decade_world_v2",
+  "label": "REAL \u2014 ThetaData 15-min NBBO (bars15 decade extract); parity-derived spot/settlements; NOT synthetic",
+  "vendor": "thetadata",
+  "dataset": "live_world",
+  "built_at_utc": "2026-08-23T23:43:07+00:00",
+  "window": [
+    "2016-01-04",
+    "2026-08-10"
+  ],
+  "fingerprint_window": [
+    "2026-04-01",
+    "2026-07-30"
+  ],
+  "n_sessions": 2665,
+  "n_quote_rows": 470386610,
+  "snapshots_without_parity_spot_trimmed": 0,
+  "dropped_sessions": [],
+  "proxies": [
+    "per-bar OHLC = bar parity spot (no intra-bar extremes at 15-min NBBO)",
+    "PM settlement = last-bar parity spot; AM (SET) = first-bar parity spot",
+    "rates = FRED DTB3, single 91d tenor, cc ACT/365"
+  ]
+}

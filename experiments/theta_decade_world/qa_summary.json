@@ -1,0 +1,27 @@
+{
+  "calendar_violations": 300,
+  "clean": false,
+  "data_version": "theta_decade_world_v2",
+  "missed_injected": {
+    "crossed_locked_rows": 0,
+    "stale_episodes": 0
+  },
+  "missing_bars_total": 1320,
+  "n_flagged_rows": 737598,
+  "n_parity_bad": 34618,
+  "n_parity_fits": 1689061,
+  "n_rows": 470386610,
+  "n_sessions": 2665,
+  "sessions_without_file": 0,
+  "structure_violations": {
+    "bound": 66463,
+    "fly": 1297,
+    "mono": 959
+  },
+  "truth": {},
+  "unexpected": {
+    "parity_bad": 34618,
+    "sanity_rows": 667853,
+    "structure_rows": 69745
+  }
+}
