@@ -176,6 +176,7 @@ def finalize(run_cfg: SweepRunConfig) -> dict:
         "n_survivors": int(df["survived"].sum()),
         "n_kept": int(df["kept"].sum()),
         "data_version": adapter.data_version,
+        "world_label": adapter.label,
     }
     (out_dir / "pruning_report.md").write_text(_report(df, summary, run_cfg))
     (out_dir / "sweep_summary.json").write_text(json.dumps(summary, indent=2))
@@ -212,11 +213,12 @@ def _report(df: pl.DataFrame, summary: dict, run_cfg: SweepRunConfig) -> str:
         for r in reasons.split(",") if reasons else []:
             reason_counts[r] = reason_counts.get(r, 0) + 1
     surv = df.filter(pl.col("survived"))
+    label = summary.get("world_label", "UNKNOWN DATA — label missing")
+    kind = "SYNTHETIC world" if "SYNTHETIC" in label else "REAL data"
     lines = [
-        "# P4 coarse-sweep pruning report — SYNTHETIC world",
+        f"# P4 coarse-sweep pruning report — {kind}",
         "",
-        "**SYNTHETIC DATA** — Pass-1 dress rehearsal on the scripted 10y world "
-        f"(`{summary['data_version']}`). No real-market conclusion is implied.",
+        f"**{label}** (`{summary['data_version']}`).",
         "",
         f"- configs evaluated: {summary['n_configs']:,} (Sobol, seed {run_cfg.seed})",
         f"- survivors: {summary['n_survivors']:,} "

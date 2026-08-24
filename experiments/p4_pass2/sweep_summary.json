@@ -1,0 +1,7 @@
+{
+  "n_configs": 16384,
+  "n_survivors": 1,
+  "n_kept": 316,
+  "data_version": "theta_decade_world_v2",
+  "world_label": "REAL \u2014 ThetaData 15-min NBBO (bars15 decade extract); parity-derived spot/settlements; NOT synthetic"
+}
