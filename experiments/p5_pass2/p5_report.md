@@ -1,6 +1,6 @@
-# P5 intraday defense grid — SYNTHETIC world
+# P5 intraday defense grid — REAL data
 
-**SYNTHETIC DATA** (`theta_decade_world_v2`) — Pass-1 dress rehearsal: near-miss P4
+**dataset `theta_decade_world_v2`** — near-miss P4
 configs (selection rule in eval/p5_grid.py) run through the REAL Track-B
 engine with resting EV-gated entries and intraday touch monitoring.
 Fill-model bounds reported side-by-side per PLAN §7.2 (CONSERVATIVE = lower

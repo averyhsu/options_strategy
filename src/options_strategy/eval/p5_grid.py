@@ -262,9 +262,10 @@ def run_p5_grid(
 
 def _report(df: pl.DataFrame, configs: list[dict], data_version: str) -> str:
     lines = [
-        "# P5 intraday defense grid — SYNTHETIC world",
+        f"# P5 intraday defense grid — "
+        f"{'SYNTHETIC world' if 'synth' in data_version.lower() else 'REAL data'}",
         "",
-        f"**SYNTHETIC DATA** (`{data_version}`) — Pass-1 dress rehearsal: near-miss P4",
+        f"**dataset `{data_version}`** — near-miss P4",
         "configs (selection rule in eval/p5_grid.py) run through the REAL Track-B",
         "engine with resting EV-gated entries and intraday touch monitoring.",
         "Fill-model bounds reported side-by-side per PLAN §7.2 (CONSERVATIVE = lower",
