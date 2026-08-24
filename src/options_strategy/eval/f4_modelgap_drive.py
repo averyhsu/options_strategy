@@ -41,14 +41,20 @@ RESULTS = OUT / "modelgap_results.parquet"
 
 
 def top_soft_params() -> list[dict]:
+    cache_path = OUT / "modelgap_top_params.json"
+    if cache_path.exists():
+        return json.loads(cache_path.read_text())
     target, _ = load_targets()
     df = _chunks_df()
     rows = df.to_dicts()
     fps = [_fp_from_row(r) for r in rows]
     soft = abc_match(fps, target, accept_frac=0.01, dd_tol_days=10**6)
     order = np.argsort(soft.distances)[:TOP_N]
-    return [{k: rows[int(i)][k] for k in DIM_NAMES} | {"idx": int(rows[int(i)]["idx"])}
-            for i in order]
+    out = [{k: rows[int(i)][k] for k in DIM_NAMES} | {"idx": int(rows[int(i)]["idx"])}
+           for i in order]
+    OUT.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(out))
+    return out
 
 
 def live_metrics(res, sessions_all: list[dt.date]) -> dict:
