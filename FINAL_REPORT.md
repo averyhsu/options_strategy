@@ -94,6 +94,40 @@ credit pockets in calm tape) is consistent with real chains; the published
 *performance curve* is not reproduced by any parameterization of that
 structure under this pass's execution model.
 
+### F4 forensics addendum (2026-08-25, `reports/f4_forensics.md`)
+
+The zero-acceptance was characterized against **three explanation families**;
+evidence for each, no conclusion beyond what is measured:
+
+1. **Model gaps (execution / defense richness).** Partially explanatory for
+   Sharpe, not for the rest: rerunning the top-50 nearest-miss configs
+   through the FULL defense grid with a favorable-fill bound (550 Track-B
+   live-window runs) lifts live Sharpe to a median 2.11 / best 5.13 — the
+   Sharpe gap closes — but **0 of 550 reach the record's scalars jointly**
+   (best %-positive-days ≈ 35% vs the record's 72.4%: selective traders are
+   flat most days) and **0 of 550 place their max drawdown in the F4
+   window**. Execution and defense modeling cannot produce the record's
+   daily texture.
+2. **Other account activity.** A bounded sleeve (≤1 event/wk, |e| ≤ 1.5%
+   NAV) reaches F11 for 3 of 50 nearest-miss configs but F4-and-F11 jointly
+   for **0 of 50** — small side-activity cannot bridge the record. The
+   weekend inverse search on real Jul-10→13 marks shows what CAN produce the
+   11% crater on a $1M account: the diagonal family only at **~20–40× the
+   disclosed sizing** (at R=15%/wk it loses ~0.6% that weekend); most
+   parsimoniously, **naked short weekly strangles 2–4% OTM** (~10% of
+   account in premium; weekend loss ≈ 110–120% of premium). Long
+   short-dated gamma GAINED over that weekend; outright delta requires ~14×
+   leverage (daily vol ~13.7%, inconsistent with the record's 2.44%). This
+   is inference about plausible holdings — not an accusation.
+3. **Record integrity.** Not directly testable from market data. What is
+   measured: the No-F4 posterior (164 accepted configs) is dominated by
+   selective traders (74% trade ≤7 of 17 weeks; median 3), i.e., the family
+   region consistent with everything EXCEPT the July crater exists but has
+   the wrong daily texture for F11 — the record's combination of 72%
+   positive days, weekly wins ≈ +30% R, AND an isolated 11% weekend crater
+   is jointly outside everything this family produces under any tested
+   configuration.
+
 ## Caveats & provenance
 
 - One named data gap (vendor-broken 2021-06-21 contract-day tick file);

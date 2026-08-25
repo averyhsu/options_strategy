@@ -1,0 +1,109 @@
+{
+  "n_runs": 550,
+  "base_median_sharpe": 2.106501468713149,
+  "best_sharpe": 5.132776257279784,
+  "best_rows": [
+    {
+      "idx": 6961,
+      "defense": "buy_back_short/t-1",
+      "fill_model": "mid",
+      "sharpe_live": 5.132776257279784,
+      "pct_positive_live": 0.3493975903614458,
+      "max_dd_live": 0.09974793364421797,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 18
+    },
+    {
+      "idx": 6961,
+      "defense": "buy_back_short/t-1",
+      "fill_model": "optimistic",
+      "sharpe_live": 5.132776257279784,
+      "pct_positive_live": 0.3493975903614458,
+      "max_dd_live": 0.09974793364421797,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 18
+    },
+    {
+      "idx": 6961,
+      "defense": "none",
+      "fill_model": "mid",
+      "sharpe_live": 5.102964648226375,
+      "pct_positive_live": 0.3493975903614458,
+      "max_dd_live": 0.09951938660046744,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 18
+    },
+    {
+      "idx": 6961,
+      "defense": "roll_out/immediate",
+      "fill_model": "mid",
+      "sharpe_live": 5.020162037318079,
+      "pct_positive_live": 0.3373493975903614,
+      "max_dd_live": 0.10204529124591122,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 18
+    },
+    {
+      "idx": 6961,
+      "defense": "roll_out_away/immediate",
+      "fill_model": "mid",
+      "sharpe_live": 4.962798680985744,
+      "pct_positive_live": 0.3373493975903614,
+      "max_dd_live": 0.12515039281189422,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 18
+    },
+    {
+      "idx": 16025,
+      "defense": "convert_vertical/immediate",
+      "fill_model": "mid",
+      "sharpe_live": 4.866873178053189,
+      "pct_positive_live": 0.37349397590361444,
+      "max_dd_live": 0.03425513567522753,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 22
+    },
+    {
+      "idx": 16025,
+      "defense": "convert_vertical/immediate",
+      "fill_model": "optimistic",
+      "sharpe_live": 4.866873178053189,
+      "pct_positive_live": 0.37349397590361444,
+      "max_dd_live": 0.03425513567522753,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 22
+    },
+    {
+      "idx": 6961,
+      "defense": "convert_vertical/immediate",
+      "fill_model": "mid",
+      "sharpe_live": 4.820774616742413,
+      "pct_positive_live": 0.37349397590361444,
+      "max_dd_live": 0.1055942438611378,
+      "dd_peak_live": "2026-04-20",
+      "n_weeks_traded": 18
+    },
+    {
+      "idx": 1398,
+      "defense": "none",
+      "fill_model": "mid",
+      "sharpe_live": 4.813038184494931,
+      "pct_positive_live": 0.3493975903614458,
+      "max_dd_live": 0.06666590085319812,
+      "dd_peak_live": "2026-05-15",
+      "n_weeks_traded": 22
+    },
+    {
+      "idx": 1398,
+      "defense": "none",
+      "fill_model": "optimistic",
+      "sharpe_live": 4.813038184494931,
+      "pct_positive_live": 0.3493975903614458,
+      "max_dd_live": 0.06666590085319812,
+      "dd_peak_live": "2026-05-15",
+      "n_weeks_traded": 22
+    }
+  ],
+  "n_reaching_record_scalars": 0,
+  "n_dd_peak_in_f4_window": 0
+}
