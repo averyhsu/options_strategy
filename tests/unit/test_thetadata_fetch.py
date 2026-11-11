@@ -32,20 +32,38 @@ class NoDataFoundError(Exception):
 
 def quote_frame(rows: list[dict]) -> pl.DataFrame:
     schema = {
-        "symbol": pl.Utf8, "expiration": pl.Utf8, "strike": pl.Float64, "right": pl.Utf8,
-        "timestamp": pl.Utf8, "bid_size": pl.Int64, "bid_exchange": pl.Utf8,
-        "bid": pl.Float64, "bid_condition": pl.Utf8, "ask_size": pl.Int64,
-        "ask_exchange": pl.Utf8, "ask": pl.Float64, "ask_condition": pl.Utf8,
+        "symbol": pl.Utf8,
+        "expiration": pl.Utf8,
+        "strike": pl.Float64,
+        "right": pl.Utf8,
+        "timestamp": pl.Utf8,
+        "bid_size": pl.Int64,
+        "bid_exchange": pl.Utf8,
+        "bid": pl.Float64,
+        "bid_condition": pl.Utf8,
+        "ask_size": pl.Int64,
+        "ask_exchange": pl.Utf8,
+        "ask": pl.Float64,
+        "ask_condition": pl.Utf8,
     }
     return pl.DataFrame(rows, schema=schema)
 
 
 def qrow(exp: str, strike: float, right: str, bid: float, ask: float) -> dict:
     return {
-        "symbol": "SPXW", "expiration": exp, "strike": strike, "right": right,
-        "timestamp": "2017-01-06T15:45:00", "bid_size": 10, "bid_exchange": "C",
-        "bid": bid, "bid_condition": "R", "ask_size": 8, "ask_exchange": "C",
-        "ask": ask, "ask_condition": "R",
+        "symbol": "SPXW",
+        "expiration": exp,
+        "strike": strike,
+        "right": right,
+        "timestamp": "2017-01-06T15:45:00",
+        "bid_size": 10,
+        "bid_exchange": "C",
+        "bid": bid,
+        "bid_condition": "R",
+        "ask_size": 8,
+        "ask_exchange": "C",
+        "ask": ask,
+        "ask_condition": "R",
     }
 
 
@@ -130,9 +148,9 @@ def test_all_sample_dates_within_standard_tier_history() -> None:
 def test_expiries_in_scope_calendar_dte_bounds() -> None:
     d = dt.date(2020, 3, 6)
     exps = [
-        dt.date(2020, 3, 6),   # 0 DTE: excluded (front week is the NEXT Friday)
+        dt.date(2020, 3, 6),  # 0 DTE: excluded (front week is the NEXT Friday)
         dt.date(2020, 3, 13),  # 7
-        dt.date(2020, 5, 8),   # 63: included
+        dt.date(2020, 5, 8),  # 63: included
         dt.date(2020, 5, 15),  # 70: excluded
     ]
     assert expiries_in_scope(exps, d, 63) == [dt.date(2020, 3, 13), dt.date(2020, 5, 8)]
@@ -291,9 +309,7 @@ def test_fetch_slice_writes_parquet_manifest_and_resumes(tmp_path) -> None:
 
 
 def test_missing_columns_raise() -> None:
-    fake = FakeLib(
-        {"option_at_time_quote": pl.DataFrame({"symbol": ["SPXW"], "strike": [2270.0]})}
-    )
+    fake = FakeLib({"option_at_time_quote": pl.DataFrame({"symbol": ["SPXW"], "strike": [2270.0]})})
     session = session_of(fake)
     cfg = _mini_cfg(None)
     with pytest.raises(VendorError, match="missing columns"):

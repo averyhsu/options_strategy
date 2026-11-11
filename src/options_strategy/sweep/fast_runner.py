@@ -82,9 +82,7 @@ def _pick_expiries(sd: SessionData, cfg: WeeklyConfig) -> tuple[dt.date, dt.date
     # mirror strategy.diagonal.select_expiries: closest-to-center front
     # (ties -> later) — real chains list daily expiries (see 2026-08-23 note)
     center = (s.front_min_days + s.front_max_days) / 2.0
-    in_window = [
-        e for e in sd.expiries if s.front_min_days <= (e - today).days <= s.front_max_days
-    ]
+    in_window = [e for e in sd.expiries if s.front_min_days <= (e - today).days <= s.front_max_days]
     if not in_window:
         return None
     front = min(in_window, key=lambda e: (abs((e - today).days - center), -(e - today).days))
@@ -264,16 +262,11 @@ def run_config(
         if cfg.exit_dte is not None and sd is not None:
             keep: list[dict] = []
             for cy in open_cycles:
-                due = (
-                    session > cy["entry_session"]
-                    and (cy["front"] - session).days <= cfg.exit_dte
-                )
+                due = session > cy["entry_session"] and (cy["front"] - session).days <= cfg.exit_dte
                 if not due:
                     keep.append(cy)
                     continue
-                close_legs = [
-                    leg for leg in cy["legs"] if positions.get(leg, 0) * leg[3] > 0
-                ]
+                close_legs = [leg for leg in cy["legs"] if positions.get(leg, 0) * leg[3] > 0]
                 mids = [_mid_at(sd, leg) for leg in close_legs]
                 if not close_legs or any(m is None for m in mids):
                     keep.append(cy)  # retry next session

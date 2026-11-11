@@ -385,10 +385,7 @@ class DoubleDiagonalWeekly:
 
     def _maybe_t1(self, view: MarketView, portfolio: Portfolio, broker: BrokerLike) -> None:
         for cy in self.cycles:
-            t1_hit = (
-                self.cfg.manage_t1 == "close_all"
-                and view.next_session == cy.front_expiry
-            )
+            t1_hit = self.cfg.manage_t1 == "close_all" and view.next_session == cy.front_expiry
             if (
                 cy.t1_done
                 or cy.entry_fills == 0

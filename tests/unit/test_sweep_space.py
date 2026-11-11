@@ -83,8 +83,9 @@ def test_prune_rules_match_plan_9_1() -> None:
 
 
 def test_space_v4_exit_mode_dim() -> None:
-    from options_strategy.sweep.space import DIM_NAMES, params_from_unit, weekly_config
     import numpy as np
+
+    from options_strategy.sweep.space import DIM_NAMES, params_from_unit, weekly_config
 
     assert DIM_NAMES[-1] == "exit_mode"
     assert len(DIM_NAMES) == 21

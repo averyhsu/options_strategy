@@ -59,9 +59,7 @@ def parity_fits(
         )
         if both.height < min_strikes or "C" not in both.columns or "P" not in both.columns:
             continue
-        fit = fit_parity(
-            both["strike"].to_numpy(), both["C"].to_numpy(), both["P"].to_numpy()
-        )
+        fit = fit_parity(both["strike"].to_numpy(), both["C"].to_numpy(), both["P"].to_numpy())
         if not (np.isfinite(fit.forward) and fit.df > 0):
             continue
         tau = (expiry - session).days / 365.0
@@ -132,8 +130,7 @@ def run_one_entry(
 def load_spot_by_session(world_root: Path) -> dict[dt.date, float]:
     bars = pl.read_parquet(world_root / "underlying_bars.parquet")
     return {
-        ts.date(): c
-        for ts, c in zip(bars["ts"].to_list(), bars["close"].to_list(), strict=True)
+        ts.date(): c for ts, c in zip(bars["ts"].to_list(), bars["close"].to_list(), strict=True)
     }
 
 
@@ -194,11 +191,7 @@ def write_report(rows: pl.DataFrame, meta: dict, out_md: Path = REPORT_MD) -> No
         hdr = "| " + " | ".join(t.columns) + " |"
         sep = "|" + "---|" * len(t.columns)
         body = [
-            "| "
-            + " | ".join(
-                f"{v:.3f}" if isinstance(v, float) else str(v) for v in r
-            )
-            + " |"
+            "| " + " | ".join(f"{v:.3f}" if isinstance(v, float) else str(v) for v in r) + " |"
             for r in t.rows()
         ]
         return "\n".join([hdr, sep, *body])
@@ -207,15 +200,26 @@ def write_report(rows: pl.DataFrame, meta: dict, out_md: Path = REPORT_MD) -> No
         f"### {w}\n\n{fmt(_agg_table(rows.filter(pl.col('window') == w)))}"
         for w in rows["window"].unique().sort().to_list()
     ]
-    q90 = rows.filter(
-        (pl.col("label") == "q90")
-        & (pl.col("wing_offset") == 25.0)
-        & (pl.col("front_variant") == "7d")
-    ).select(
-        "session", "window", "ema_state", "short_put", "short_call",
-        "net_premium", "net_premium_pct_risk", "max_gain_pct_risk",
-        "thirty_pct_achievable", "parity_rmse_median",
-    ).sort("session")
+    q90 = (
+        rows.filter(
+            (pl.col("label") == "q90")
+            & (pl.col("wing_offset") == 25.0)
+            & (pl.col("front_variant") == "7d")
+        )
+        .select(
+            "session",
+            "window",
+            "ema_state",
+            "short_put",
+            "short_call",
+            "net_premium",
+            "net_premium_pct_risk",
+            "max_gain_pct_risk",
+            "thirty_pct_achievable",
+            "parity_rmse_median",
+        )
+        .sort("session")
+    )
 
     out_md.write_text(
         "# Credit check PREVIEW — REAL DATA (ThetaData free tier), "

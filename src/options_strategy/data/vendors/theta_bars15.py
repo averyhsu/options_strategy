@@ -136,8 +136,7 @@ def probe(session: ThetaSession, day: dt.date, spot: float) -> dict:
         "columns": df.columns,
         "n_contracts": df.select("root", "expiration", "strike", "right").unique().height,
         "bars_per_contract": round(
-            df.height
-            / max(df.select("root", "expiration", "strike", "right").unique().height, 1),
+            df.height / max(df.select("root", "expiration", "strike", "right").unique().height, 1),
             1,
         ),
         "ts_column": ts_col,

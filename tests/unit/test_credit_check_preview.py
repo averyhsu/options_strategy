@@ -112,8 +112,17 @@ def test_write_report_renders(tmp_path) -> None:
         pl.lit("vix-spike-aug-2024").alias("window"), pl.lit("bull").alias("ema_state")
     )
     out = tmp_path / "preview.md"
-    write_report(rows, {"data_version": "vTEST", "n_entries_priced": 1,
-                        "n_entries_skipped": 0, "skipped": [], "n_structures": rows.height}, out)
+    write_report(
+        rows,
+        {
+            "data_version": "vTEST",
+            "n_entries_priced": 1,
+            "n_entries_skipped": 0,
+            "skipped": [],
+            "n_structures": rows.height,
+        },
+        out,
+    )
     text = out.read_text()
     assert "2 of 6 regimes, EOD basis" in text
     assert "vTEST" in text

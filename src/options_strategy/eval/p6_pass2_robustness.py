@@ -50,9 +50,7 @@ def main() -> None:
     (OUT / "wfo.json").write_text(json.dumps(walk_forward(navs), indent=2))
     (OUT / "dsr.json").write_text(json.dumps(deflated_sharpe(navs, N_TRIALS), indent=2))
     (OUT / "pbo.json").write_text(json.dumps(pbo_cscv(navs), indent=2))
-    (OUT / "stress_windows.json").write_text(
-        json.dumps(stress_windows(navs, STRESS), indent=2)
-    )
+    (OUT / "stress_windows.json").write_text(json.dumps(stress_windows(navs, STRESS), indent=2))
     (OUT / "ruin.json").write_text(
         json.dumps(risk_of_ruin(str(OUT / "kept_cycles.parquet")), indent=2)
     )

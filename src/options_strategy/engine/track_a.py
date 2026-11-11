@@ -19,6 +19,7 @@ import polars as pl
 from options_strategy.data.adapters import SyntheticWorldAdapter
 from options_strategy.engine.backtest import BacktestResult, _settle
 from options_strategy.engine.config import EngineConfig
+from options_strategy.engine.instruments import OptionKey
 from options_strategy.engine.margin import contracts_for_risk, scenario_extremes
 from options_strategy.engine.marketview import MarketView
 from options_strategy.engine.marks import mark_positions
@@ -113,7 +114,7 @@ def run_track_a(
                     if side == "put"
                     else (cy.plan.legs[1][0], cy.plan.legs[3][0])
                 )
-                close_legs = ((short, +1), (long_, -1))
+                close_legs: tuple[tuple[OptionKey, int], ...] = ((short, +1), (long_, -1))
                 mid_debit = 0.0
                 ok = True
                 for key, ratio in close_legs:

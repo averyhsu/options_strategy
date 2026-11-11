@@ -229,7 +229,15 @@ def run_credit_check(
         for off in wing_offsets:
             for exit_dte in exit_dtes:
                 m = structure_metrics(
-                    chain, spot, fits, front, back, put_t, call_t, off, label,
+                    chain,
+                    spot,
+                    fits,
+                    front,
+                    back,
+                    put_t,
+                    call_t,
+                    off,
+                    label,
                     exit_dte=exit_dte,
                 )
                 if m is not None:

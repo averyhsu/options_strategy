@@ -23,10 +23,10 @@ def test_round5() -> None:
 def test_resolve_expiries_uses_listed_dates_with_holiday_shift() -> None:
     week_end = dt.date(2020, 4, 3)
     listed = [
-        dt.date(2020, 4, 3),   # entry day itself: excluded (0 DTE)
-        dt.date(2020, 4, 9),   # Good-Friday-shifted Thursday front (6 days)
+        dt.date(2020, 4, 3),  # entry day itself: excluded (0 DTE)
+        dt.date(2020, 4, 9),  # Good-Friday-shifted Thursday front (6 days)
         dt.date(2020, 4, 17),
-        dt.date(2020, 5, 1),   # first listed >= front+21d
+        dt.date(2020, 5, 1),  # first listed >= front+21d
         dt.date(2020, 5, 15),
     ]
     assert resolve_expiries(week_end, listed) == (dt.date(2020, 4, 9), dt.date(2020, 5, 1))
@@ -36,9 +36,12 @@ def test_resolve_expiries_uses_listed_dates_with_holiday_shift() -> None:
 
 def test_week_contracts_shape_and_dedup() -> None:
     row = {
-        "k_put_q85": 4950.0, "k_call_q85": 5050.0,
-        "k_put_q90": 4925.0, "k_call_q90": 5075.0,
-        "k_put_q95": 4900.0, "k_call_q95": 5100.0,
+        "k_put_q85": 4950.0,
+        "k_call_q85": 5050.0,
+        "k_put_q90": 4925.0,
+        "k_call_q90": 5075.0,
+        "k_put_q95": 4900.0,
+        "k_call_q95": 5100.0,
     }
     front, back = dt.date(2022, 3, 11), dt.date(2022, 4, 1)
     legs = week_contracts(row, front, back)

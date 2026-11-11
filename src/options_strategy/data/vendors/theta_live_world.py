@@ -60,28 +60,25 @@ def to_quotes(raw: pl.DataFrame) -> pl.DataFrame:
     # 15:45 — so the engine's "EOD = last bar" convention lands on 15:45.
     # Settlements are computed separately from the pre-drop parity spots.
     raw = raw.filter(pl.col("timestamp").dt.hour() < 16)
-    out = (
-        raw.select(
-            pl.col("timestamp").dt.cast_time_unit("us").alias("ts"),
-            pl.col("root").cast(pl.String),
-            pl.col("expiration").alias("expiry_date"),
-            pl.when(pl.col("root") == "SPX")
-            .then(pl.lit("AM"))
-            .otherwise(pl.lit("PM"))
-            .alias("am_pm_settle"),
-            pl.col("strike").cast(pl.Float64),
-            pl.col("right").cast(pl.Utf8).str.to_uppercase().str.slice(0, 1).alias("cp"),
-            pl.col("bid").cast(pl.Float64),
-            pl.col("ask").cast(pl.Float64),
-            pl.col("bid_size").cast(pl.Int64),
-            pl.col("ask_size").cast(pl.Int64),
-            pl.lit(None, dtype=pl.Float64).alias("last"),
-            pl.lit(None, dtype=pl.Int64).alias("volume"),
-            pl.lit(None, dtype=pl.Int64).alias("open_interest"),
-            pl.lit(0, dtype=pl.Int32).alias("quote_condition"),
-        )
-        .sort(["ts", "root", "expiry_date", "strike", "cp"])
-    )
+    out = raw.select(
+        pl.col("timestamp").dt.cast_time_unit("us").alias("ts"),
+        pl.col("root").cast(pl.String),
+        pl.col("expiration").alias("expiry_date"),
+        pl.when(pl.col("root") == "SPX")
+        .then(pl.lit("AM"))
+        .otherwise(pl.lit("PM"))
+        .alias("am_pm_settle"),
+        pl.col("strike").cast(pl.Float64),
+        pl.col("right").cast(pl.Utf8).str.to_uppercase().str.slice(0, 1).alias("cp"),
+        pl.col("bid").cast(pl.Float64),
+        pl.col("ask").cast(pl.Float64),
+        pl.col("bid_size").cast(pl.Int64),
+        pl.col("ask_size").cast(pl.Int64),
+        pl.lit(None, dtype=pl.Float64).alias("last"),
+        pl.lit(None, dtype=pl.Int64).alias("volume"),
+        pl.lit(None, dtype=pl.Int64).alias("open_interest"),
+        pl.lit(0, dtype=pl.Int32).alias("quote_condition"),
+    ).sort(["ts", "root", "expiry_date", "strike", "cp"])
     return validate_schema(out, OPTION_QUOTES_SCHEMA, "theta_live option_quotes")
 
 
@@ -98,11 +95,9 @@ def parity_spots_for_session(quotes: pl.DataFrame) -> pl.DataFrame:
     ).with_columns(((pl.col("bid") + pl.col("ask")) / 2).alias("mid"))
     rows = []
     for (ts,), snap in live.partition_by(["ts"], as_dict=True, maintain_order=True).items():
-        pairs = (
-            snap.pivot(on="cp", index=["expiry_date", "strike"], values="mid",
-                       aggregate_function="mean")
-            .drop_nulls()
-        )
+        pairs = snap.pivot(
+            on="cp", index=["expiry_date", "strike"], values="mid", aggregate_function="mean"
+        ).drop_nulls()
         if "C" not in pairs.columns or "P" not in pairs.columns:
             continue
         counts = pairs.group_by("expiry_date").agg(pl.len()).sort("expiry_date")
@@ -223,9 +218,7 @@ def build_world(
         )
         seen.update(u)
     expiries = (
-        pl.DataFrame(
-            [{"expiry_date": e, "root": r, "settlement": s} for e, r, s in sorted(seen)]
-        )
+        pl.DataFrame([{"expiry_date": e, "root": r, "settlement": s} for e, r, s in sorted(seen)])
         .select("expiry_date", "root", "settlement")
         .sort("expiry_date", "root")
     )

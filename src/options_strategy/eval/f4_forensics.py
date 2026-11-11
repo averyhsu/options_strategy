@@ -63,9 +63,7 @@ def no_f4_posterior() -> dict:
     df = _chunks_df()
     rows = df.to_dicts()
     fps = [_fp_from_row(r) for r in rows]
-    result = abc_match(
-        fps, target, accept_frac=float(raw["abc"]["accept_frac"]), dd_tol_days=10**6
-    )
+    result = abc_match(fps, target, accept_frac=float(raw["abc"]["accept_frac"]), dd_tol_days=10**6)
     accepted = [rows[i] for i in result.accepted_idx]
     marg = _marginals(accepted)
     cyc = np.array([r["n_live_cycles"] for r in accepted])
@@ -101,8 +99,9 @@ def _snap(quotes: pl.DataFrame, day: dt.date, hh: int, mm: int) -> pl.DataFrame:
     ).with_columns(((pl.col("bid") + pl.col("ask")) / 2).alias("mid"))
 
 
-def _mid(snap: pl.DataFrame, root_pref: tuple[str, ...], expiry: dt.date, cp: str,
-         strike: float) -> float | None:
+def _mid(
+    snap: pl.DataFrame, root_pref: tuple[str, ...], expiry: dt.date, cp: str, strike: float
+) -> float | None:
     for root in root_pref:
         r = snap.filter(
             (pl.col("root") == root)
@@ -173,8 +172,11 @@ def weekend_inverse_search() -> dict:
         pnl_per_unit = (v_mon - v_fri) * 100.0
         if pnl_per_unit >= 0:
             results.append(
-                {"structure": name, "status": "gains_on_weekend",
-                 "pnl_per_unit": round(pnl_per_unit, 1)}
+                {
+                    "structure": name,
+                    "status": "gains_on_weekend",
+                    "pnl_per_unit": round(pnl_per_unit, 1),
+                }
             )
             return
         units = F4_LOSS_FRAC * ACCOUNT / (-pnl_per_unit)
@@ -393,8 +395,7 @@ def build_report() -> None:
             "",
         ]
     lines += [
-        "## 4. Sleeve sensitivity (<=1 event/week, |e| <= "
-        f"{sl['max_event_frac']:.1%} NAV)",
+        f"## 4. Sleeve sensitivity (<=1 event/week, |e| <= {sl['max_event_frac']:.1%} NAV)",
         "",
         f"- configs evaluated: {sl['n_evaluated']}",
         f"- F4 magnitude reachable (base already craters >= "

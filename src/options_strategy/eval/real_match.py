@@ -141,8 +141,7 @@ def finalize() -> dict:
     # shows HOW FAR the nearest candidates sit, not just that none passed.
     nearest: list[dict] = []
     if not accepted:
-        soft = abc_match(fps, target, accept_frac=float(abc_cfg["accept_frac"]),
-                         dd_tol_days=10**6)
+        soft = abc_match(fps, target, accept_frac=float(abc_cfg["accept_frac"]), dd_tol_days=10**6)
         order = np.argsort(soft.distances)[:10]
         for i in order:
             r = rows[int(i)]
@@ -195,8 +194,10 @@ def finalize() -> dict:
         "",
         "| dim | accepted | identified |",
         "|---|---|---|",
-        *[f"| {m['dim']} | {m['accepted']} | {'YES' if m['identified'] else 'plateau'} |"
-          for m in marg],
+        *[
+            f"| {m['dim']} | {m['accepted']} | {'YES' if m['identified'] else 'plateau'} |"
+            for m in marg
+        ],
         "",
         "## Identifiability statement",
         "",
@@ -235,9 +236,13 @@ def finalize() -> dict:
     REPORT_MD.write_text("\n".join(lines))
 
     cfg_str = json.dumps(
-        {"eval": "real_match", "targets": {k: str(v) for k, v in raw["targets"].items()},
-         "abc": abc_cfg},
-        sort_keys=True, separators=(",", ":"),
+        {
+            "eval": "real_match",
+            "targets": {k: str(v) for k, v in raw["targets"].items()},
+            "abc": abc_cfg,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
     )
     ledger.append(
         [
@@ -266,7 +271,7 @@ def main() -> int:
     if args.finalize:
         print(json.dumps(finalize(), indent=2, default=str))
         return 0
-    account = float(raw['abc'].get('account_size') or 0) or None
+    account = float(raw["abc"].get("account_size") or 0) or None
     if args.chunk is not None:
         fp_chunk(WORLD_ROOT, str(OUT_DIR), seed, n, args.chunk, account_size=account)
         print(json.dumps({"chunk": args.chunk, "done": True}))

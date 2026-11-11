@@ -119,7 +119,15 @@ def test_exit_mode_variant_labels_and_differs_from_hold() -> None:
         _chain(HAND_ROWS), 5000.0, FITS14, FRONT, BACK, 4900.0, 5100.0, 0.0, "hand"
     )
     early = structure_metrics(
-        _chain(HAND_ROWS), 5000.0, FITS14, FRONT, BACK, 4900.0, 5100.0, 0.0, "hand",
+        _chain(HAND_ROWS),
+        5000.0,
+        FITS14,
+        FRONT,
+        BACK,
+        4900.0,
+        5100.0,
+        0.0,
+        "hand",
         exit_dte=7,
     )
     assert hold is not None and early is not None
@@ -137,7 +145,15 @@ def test_exit_mode_variant_labels_and_differs_from_hold() -> None:
 def test_exit_horizon_at_or_past_front_expiry_is_rejected() -> None:
     # 7d front with a 7d-before-expiry exit -> horizon 0: no valid variant
     m = structure_metrics(
-        _chain(HAND_ROWS), 5000.0, _fits(), FRONT, BACK, 4900.0, 5100.0, 0.0, "hand",
+        _chain(HAND_ROWS),
+        5000.0,
+        _fits(),
+        FRONT,
+        BACK,
+        4900.0,
+        5100.0,
+        0.0,
+        "hand",
         exit_dte=7,
     )
     assert m is None

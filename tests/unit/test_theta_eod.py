@@ -23,9 +23,24 @@ from options_strategy.data.vendors.thetadata import ThetaSession
 CFG = EodPreviewConfig.load(DEFAULT_CONFIG)
 
 EOD_COLS = [
-    "symbol", "expiration", "strike", "right", "open", "high", "low", "close",
-    "volume", "count", "bid_size", "bid_exchange", "bid", "bid_condition",
-    "ask_size", "ask_exchange", "ask", "ask_condition",
+    "symbol",
+    "expiration",
+    "strike",
+    "right",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "count",
+    "bid_size",
+    "bid_exchange",
+    "bid",
+    "bid_condition",
+    "ask_size",
+    "ask_exchange",
+    "ask",
+    "ask_condition",
 ]
 
 
@@ -33,12 +48,66 @@ def eod_frame(rows: list[list]) -> pl.DataFrame:
     return pl.DataFrame([dict(zip(EOD_COLS, r, strict=True)) for r in rows])
 
 
-ROW_CALL = ["SPX", "2024-08-16", 5400.0, "call", 10.0, 12.0, 9.0, 11.0, 100, 5,
-            10, "C", 10.9, "R", 8, "C", 11.3, "R"]
-ROW_PUT = ["SPXW", "2024-08-09", 5350.0, "put", 20.0, 22.0, 19.0, 21.0, 50, 5,
-           10, "C", 20.9, "R", 8, "C", 21.3, "R"]
-ROW_FAR = ["SPXW", "2024-08-09", 9000.0, "call", 0.0, 0.0, 0.0, 0.0, 0, 0,
-           0, "C", 0.05, "R", 1, "C", 0.10, "R"]
+ROW_CALL = [
+    "SPX",
+    "2024-08-16",
+    5400.0,
+    "call",
+    10.0,
+    12.0,
+    9.0,
+    11.0,
+    100,
+    5,
+    10,
+    "C",
+    10.9,
+    "R",
+    8,
+    "C",
+    11.3,
+    "R",
+]
+ROW_PUT = [
+    "SPXW",
+    "2024-08-09",
+    5350.0,
+    "put",
+    20.0,
+    22.0,
+    19.0,
+    21.0,
+    50,
+    5,
+    10,
+    "C",
+    20.9,
+    "R",
+    8,
+    "C",
+    21.3,
+    "R",
+]
+ROW_FAR = [
+    "SPXW",
+    "2024-08-09",
+    9000.0,
+    "call",
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0,
+    0,
+    0,
+    "C",
+    0.05,
+    "R",
+    1,
+    "C",
+    0.10,
+    "R",
+]
 
 
 class FakeLib:
@@ -107,8 +176,14 @@ def test_probe_reports_nbbo_ok_and_subscriptions() -> None:
 
 def test_probe_flags_missing_quotes() -> None:
     no_quotes = pl.DataFrame(
-        {"symbol": ["SPX"], "expiration": ["2024-08-16"], "strike": [5400.0],
-         "right": ["call"], "close": [11.0], "volume": [100]}
+        {
+            "symbol": ["SPX"],
+            "expiration": ["2024-08-16"],
+            "strike": [5400.0],
+            "right": ["call"],
+            "close": [11.0],
+            "volume": [100],
+        }
     )
     result = probe_eod(CFG, session_of(FakeLib(no_quotes)))
     assert result["nbbo_ok"] is False

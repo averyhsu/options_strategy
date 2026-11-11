@@ -50,8 +50,9 @@ def top_soft_params() -> list[dict]:
     fps = [_fp_from_row(r) for r in rows]
     soft = abc_match(fps, target, accept_frac=0.01, dd_tol_days=10**6)
     order = np.argsort(soft.distances)[:TOP_N]
-    out = [{k: rows[int(i)][k] for k in DIM_NAMES} | {"idx": int(rows[int(i)]["idx"])}
-           for i in order]
+    out = [
+        {k: rows[int(i)][k] for k in DIM_NAMES} | {"idx": int(rows[int(i)]["idx"])} for i in order
+    ]
     OUT.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(out))
     return out
@@ -93,13 +94,20 @@ def drive(max_seconds: float | None) -> dict:
         cfg = _to_resting({k: params[k] for k in DIM_NAMES}, defense, "eod_immediate")
         strat = DoubleDiagonalWeekly(cfg)
         res = run_backtest(
-            adapter, strat, engine.model_copy(update={"fill_model": fm}),
+            adapter,
+            strat,
+            engine.model_copy(update={"fill_model": fm}),
             initial_cash=engine.account_size,
         )
         m = live_metrics(res, [])
         rows.append(
-            {"idx": params["idx"], "defense": dname, "fill_model": fm.value, **m,
-             "n_weeks_traded": sum(1 for w in strat.week_log if w.get("traded"))}
+            {
+                "idx": params["idx"],
+                "defense": dname,
+                "fill_model": fm.value,
+                **m,
+                "n_weeks_traded": sum(1 for w in strat.week_log if w.get("traded")),
+            }
         )
         pl.DataFrame(rows).write_parquet(RESULTS)
 
@@ -151,8 +159,14 @@ def summarize() -> dict:
         "base_median_sharpe": float(base["sharpe_live"].median()) if base.height else None,
         "best_sharpe": float(df["sharpe_live"].max()),
         "best_rows": best.select(
-            "idx", "defense", "fill_model", "sharpe_live", "pct_positive_live",
-            "max_dd_live", "dd_peak_live", "n_weeks_traded"
+            "idx",
+            "defense",
+            "fill_model",
+            "sharpe_live",
+            "pct_positive_live",
+            "max_dd_live",
+            "dd_peak_live",
+            "n_weeks_traded",
         ).to_dicts(),
         "n_reaching_record_scalars": hit.height,
         "n_dd_peak_in_f4_window": jul.height,

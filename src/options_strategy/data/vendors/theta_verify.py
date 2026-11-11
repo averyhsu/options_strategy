@@ -18,9 +18,10 @@ MANIFEST_ROOT = Path("data/raw/theta")
 STORES: dict[str, tuple[Path, int]] = {
     # store name -> (glob root, expected parquet count; -1 = no fixed count)
     "credit_check_slice (51 dates x 3 snapshots)": (
-        Path("data/raw/thetadata/credit_check_slice/quotes"), 51),
-    "exit7_snapshots (20 exit dates)": (
-        Path("data/raw/thetadata/exit7_snapshots/quotes"), 20),
+        Path("data/raw/thetadata/credit_check_slice/quotes"),
+        51,
+    ),
+    "exit7_snapshots (20 exit dates)": (Path("data/raw/thetadata/exit7_snapshots/quotes"), 20),
     "eod_preview raw (104 sessions)": (Path("data/raw/theta/eod_preview/raw"), 104),
     "bars15 decade (2665 sessions)": (Path("data/raw/theta/bars15/raw"), 2665),
     "ticks touch-weeks (214 weeks)": (Path("data/raw/theta/ticks/weeks"), 214),
@@ -59,8 +60,12 @@ def verify() -> tuple[bool, str]:
         count_ok = expected < 0 or len(files) == expected
         readable = 0
         broken: list[str] = []
-        lines += [f"## {name}", "", f"- path: `{root}`", f"- files: {len(files)}"
-                  f" (expected {expected}) {'OK' if count_ok else '** MISMATCH **'}"]
+        lines += [
+            f"## {name}",
+            "",
+            f"- path: `{root}`",
+            f"- files: {len(files)} (expected {expected}) {'OK' if count_ok else '** MISMATCH **'}",
+        ]
         if not count_ok:
             all_ok = False
         entries = []
@@ -74,10 +79,16 @@ def verify() -> tuple[bool, str]:
             size = f.stat().st_size
             total_bytes += size
             entries.append(f"| {f.name} | {size} | {sha256_file(f)} |")
-        lines += [f"- readable: {readable}/{len(files)}"
-                  f" {'OK' if not broken else '** BROKEN: ' + '; '.join(broken) + ' **'}",
-                  f"- bytes: {total_bytes:,}", "",
-                  "| file | bytes | sha256 |", "|---|---|---|", *entries, ""]
+        lines += [
+            f"- readable: {readable}/{len(files)}"
+            f" {'OK' if not broken else '** BROKEN: ' + '; '.join(broken) + ' **'}",
+            f"- bytes: {total_bytes:,}",
+            "",
+            "| file | bytes | sha256 |",
+            "|---|---|---|",
+            *entries,
+            "",
+        ]
         if broken:
             all_ok = False
     return all_ok, "\n".join(lines)
@@ -94,8 +105,7 @@ def main() -> int:
         (MANIFEST_ROOT / "DOWNLOADS_COMPLETE").write_text(
             dt.datetime.now(dt.UTC).isoformat(timespec="seconds") + "\n"
         )
-    print(json.dumps({"all_ok": ok, "manifest": str(out),
-                      "downloads_complete_written": ok}))
+    print(json.dumps({"all_ok": ok, "manifest": str(out), "downloads_complete_written": ok}))
     return 0 if ok else 1
 
 

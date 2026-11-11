@@ -96,8 +96,7 @@ class EodPreviewConfig:
             rate_limit_per_min=int(raw["rate_limit_per_min"]),
             spot_source=Path(raw["spot_source"]),
             windows=tuple(
-                Window(w["name"], _as_date(w["start"]), _as_date(w["end"]))
-                for w in raw["windows"]
+                Window(w["name"], _as_date(w["start"]), _as_date(w["end"])) for w in raw["windows"]
             ),
         )
 
@@ -157,9 +156,7 @@ def fetch_preview(
     win_by_date = {
         d: w.name
         for w in cfg.windows
-        for d in sessions.filter(
-            pl.col("session").is_between(w.start, w.end)
-        )["session"].to_list()
+        for d in sessions.filter(pl.col("session").is_between(w.start, w.end))["session"].to_list()
     }
 
     per_date: list[dict] = []
@@ -226,11 +223,7 @@ def _to_option_quotes(
             .otherwise(pl.lit("PM"))
             .alias("am_pm_settle"),
             pl.col("strike").cast(pl.Float64),
-            pl.col("right")
-            .cast(pl.Utf8)
-            .str.to_uppercase()
-            .str.slice(0, 1)
-            .alias("cp"),
+            pl.col("right").cast(pl.Utf8).str.to_uppercase().str.slice(0, 1).alias("cp"),
             pl.col("bid").cast(pl.Float64),
             pl.col("ask").cast(pl.Float64),
             pl.col("bid_size").cast(pl.Int64),

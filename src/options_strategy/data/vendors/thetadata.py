@@ -364,9 +364,7 @@ def fetch_sample_date(
         df = session.at_time_bulk(root, sample.entry_date, snap_time, cfg.max_dte)
         if df.is_empty():
             return df
-        return _normalize(df, root, snap_time, sample).filter(
-            pl.col("strike").is_between(lo, hi)
-        )
+        return _normalize(df, root, snap_time, sample).filter(pl.col("strike").is_between(lo, hi))
 
     jobs = [(root, t) for root in cfg.roots for t in cfg.snapshot_times]
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -429,9 +427,7 @@ def check_access(cfg: SliceConfig, session: ThetaSession | None = None) -> dict:
     return out
 
 
-def fetch_slice(
-    cfg: SliceConfig, session: ThetaSession | None = None, force: bool = False
-) -> dict:
+def fetch_slice(cfg: SliceConfig, session: ThetaSession | None = None, force: bool = False) -> dict:
     session = session or make_session(cfg.creds_file, cfg.rate_limit_per_min)
     out_dir = cfg.out_root / "quotes"
     out_dir.mkdir(parents=True, exist_ok=True)

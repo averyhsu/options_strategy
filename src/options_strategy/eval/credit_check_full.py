@@ -102,8 +102,13 @@ def run_full(
         sub = []
         for variant, front_window in FRONT_WINDOWS.items():
             df = run_credit_check(
-                chain, spot, fits, date, edges[variant],
-                front_dte_window=front_window, exit_dtes=EXIT_DTES[variant],
+                chain,
+                spot,
+                fits,
+                date,
+                edges[variant],
+                front_dte_window=front_window,
+                exit_dtes=EXIT_DTES[variant],
             )
             if df.height:
                 sub.append(df.with_columns(pl.lit(variant).alias("front_variant")))
@@ -133,9 +138,7 @@ def run_full(
 
 def agg_table(rows: pl.DataFrame) -> pl.DataFrame:
     return (
-        rows.group_by(
-            ["front_variant", "exit_mode", "label", "wing_offset"], maintain_order=True
-        )
+        rows.group_by(["front_variant", "exit_mode", "label", "wing_offset"], maintain_order=True)
         .agg(
             pl.len().alias("n"),
             (pl.col("net_premium_pct_risk") > 0).mean().alias("frac_credit"),
@@ -166,9 +169,7 @@ def gate_result(rows: pl.DataFrame) -> dict:
             per_regime[regime] = {"n_dates": 0, "frac_dates_30pct": None}
             n_below += 1
             continue
-        by_date = sub.group_by("session").agg(
-            pl.col("thirty_pct_achievable").any().alias("ok")
-        )
+        by_date = sub.group_by("session").agg(pl.col("thirty_pct_achievable").any().alias("ok"))
         frac = float(by_date["ok"].mean())
         per_regime[regime] = {"n_dates": by_date.height, "frac_dates_30pct": frac}
         if frac < GATE_MIN_FRAC:
@@ -216,8 +217,12 @@ def write_report(rows: pl.DataFrame, meta: dict, gate: dict, out_md: Path = REPO
         f"1. **Credit reading:** {frac_credit_all:.1%} of all {meta['n_structures']} structures "
         "priced as net credits at the 15:45 ET NBBO mid. The author's claim under the "
         "credit reading is "
-        + ("**not refuted**" if frac_credit_all > 0.05 else "**refuted on real chains** "
-           "(consistent with the synthetic 0/4096 and the EOD preview 0/552)")
+        + (
+            "**not refuted**"
+            if frac_credit_all > 0.05
+            else "**refuted on real chains** "
+            "(consistent with the synthetic 0/4096 and the EOD preview 0/552)"
+        )
         + ".\n"
         "2. **Return-on-risk reading (author-consistent corner: 14d fronts, q90/q95/atm_ref, "
         "offsets 0-50, either exit mode):**\n" + "\n".join(gate_lines) + "\n"

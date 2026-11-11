@@ -163,9 +163,9 @@ def fetch_weeks(limit: int | None = None) -> dict:
             skipped.append(str(week_end))
             continue
         front, back = exps
-        days = sessions_all.filter(
-            (pl.col("session") >= week_end) & (pl.col("session") <= front)
-        )["session"].to_list()
+        days = sessions_all.filter((pl.col("session") >= week_end) & (pl.col("session") <= front))[
+            "session"
+        ].to_list()
         frames = []
         for leg in week_contracts(row, front, back):
             for day in days:
@@ -235,11 +235,16 @@ def main() -> int:
     args = ap.parse_args()
     if args.list_only:
         weeks = touch_week_frame()
-        print(json.dumps({
-            "n_touch_weeks": weeks.height,
-            "first": str(weeks["week_end"].min()),
-            "last": str(weeks["week_end"].max()),
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "n_touch_weeks": weeks.height,
+                    "first": str(weeks["week_end"].min()),
+                    "last": str(weeks["week_end"].max()),
+                },
+                indent=2,
+            )
+        )
         return 0
     if args.probe:
         session = make_session(CREDS, rate_limit_per_min=240)
@@ -251,10 +256,17 @@ def main() -> int:
             raise VendorError("probe: could not resolve expiries")
         leg = week_contracts(row, *exps)[0]
         df = tick_day(session, leg, row["week_end"])
-        print(json.dumps({
-            "week": str(row["week_end"]), "leg": {k: str(v) for k, v in leg.items()},
-            "rows": df.height, "columns": df.columns,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "week": str(row["week_end"]),
+                    "leg": {k: str(v) for k, v in leg.items()},
+                    "rows": df.height,
+                    "columns": df.columns,
+                },
+                indent=2,
+            )
+        )
         return 0
     print(json.dumps(fetch_weeks(limit=args.limit), indent=2))
     return 0
